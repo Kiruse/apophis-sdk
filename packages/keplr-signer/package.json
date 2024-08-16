@@ -1,0 +1,25 @@
+{
+  "name": "@crypto-me/keplr-signer",
+  "version": "0.0.1",
+  "author": "Kiruse",
+  "repository": "https://github.com/kiruse/crypto-me.git",
+  "type": "module",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "dependencies": {
+    "@keplr-wallet/types": "^0.12.121",
+    "long": "^5.2.3"
+  },
+  "peerDependencies": {
+    "@crypto-me/core": "0.1.0",
+    "typescript": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.3.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "tsconfig.json"
+  ]
+}

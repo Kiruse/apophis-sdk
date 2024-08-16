@@ -1,0 +1,32 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Mono:wght@100..900&display=swap');
+
+.cryptome-address {
+  font-family: 'Noto Sans Mono', monospace;
+  font-weight: 100;
+}
+
+.cryptome-wallet-selector {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cryptome-wallet-selector > .cryptome-wallet-choice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--cryptome-wallet-icon-width, 40px);
+  height: var(--cryptome-wallet-icon-height, 40px);
+  border-radius: var(--cryptome-roundness, 10px);
+  background: var(--cryptome-primary, hsl(276, 90%, 50%));
+  color: var(--cryptome-onprimary, white);
+  cursor: pointer;
+}
+
+.cryptome-wallet-selector > .cryptome-wallet-choice.disabled {
+  opacity: 75%;
+  filter: brightness(75%);
+  cursor: not-allowed;
+}

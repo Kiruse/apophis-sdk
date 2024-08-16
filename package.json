@@ -1,0 +1,10 @@
+{
+  "name": "@crypto-me/monorepo",
+  "version": "0.0.1",
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  },
+  "workspaces": [
+    "packages/*"
+  ]
+}
