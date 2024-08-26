@@ -198,29 +198,33 @@ export class CosmosWebSocket {
     }
   }
 
+  /** Send is a low level method to directly invoke an RPC method on the remote endpoint. It wraps
+   * around the underlying jsonrpc protocol and returns a promise that resolves with the result of
+   * the request after unmarshalling it.
+   */
   send<T = unknown>(method: string, ...params: any[]) {
-    const id = this.#nextSubId++;
-    this.socket.send({
-      jsonrpc: '2.0',
-      method,
-      params,
-      id,
-    });
+    return new Promise<T>((resolve) => {
+      const id = this.#nextSubId++;
+      this.socket.send({
+        jsonrpc: '2.0',
+        method,
+        params,
+        id,
+      });
 
-    const event = Event<T>();
-    this.socket.onMessage.oncePred(({ args: msg }) => {
-      const result = unmarshal(JSON.parse(msg)) as RPCResult;
-      if (result.id === id) {
-        event.emit(result.result as any);
-      }
-    }, ({ args }) => {
-      try {
-        return JSON.parse(args).id === id;
-      } catch {
-        return false;
-      }
+      this.socket.onMessage.oncePred(({ args: msg }) => {
+        const result = unmarshal(JSON.parse(msg)) as RPCResult<T>;
+        if (result.id === id) {
+          resolve(result.result);
+        }
+      }, ({ args }) => {
+        try {
+          return JSON.parse(args).id === id;
+        } catch {
+          return false;
+        }
+      });
     });
-    return event;
   }
 
   get endpoint() {
