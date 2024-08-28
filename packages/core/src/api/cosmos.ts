@@ -8,7 +8,7 @@ import { getRest, getWebSocketEndpoint } from '../connection.js';
 import * as Protobuf from '../encoding/protobuf.js';
 import * as signals from '../signals.js';
 import { NetworkConfig } from '../types.js';
-import type { BasicRestApi, CosmosBlockEvent, CosmosBlockEventRaw, CosmosTransactionEvent, CosmosTransactionEventRaw } from '../types.cosmos.js';
+import type { BasicRestApi, CosmosBlockEvent, CosmosBlockEventRaw, CosmosTransactionEvent, CosmosTransactionEventRaw, WS } from '../types.cosmos.js';
 import { PowerSocket } from '../powersocket.js';
 import { fromBase64, toBase64, toHex } from '../utils.js';
 
@@ -105,6 +105,11 @@ export class CosmosWebSocket {
       this.socket.onMessage(async ({ args: msg }) => {
         try {
           const result = unmarshal(JSON.parse(msg)) as RPCResult;
+          if (result.error) {
+            console.warn('RPC error:', result);
+            return;
+          }
+
           // ignore ACK messages (for now)
           if (!result.result || !Object.entries(result.result).length) return;
           if (result.id === 1) {
@@ -117,7 +122,7 @@ export class CosmosWebSocket {
               evidence: block.evidence.evidence,
               txResults: result_finalize_block?.tx_results ?? [],
             });
-          } else {
+          } else if (result.id in this.#subs) {
             // TODO: should handle multiple subscriptions for the same tx + query
             const { data: { value: { tx_result: tx } } } = result.result as CosmosTransactionEventRaw;
             if ('code' in tx.result) {
@@ -198,12 +203,46 @@ export class CosmosWebSocket {
     }
   }
 
+  /** Method corresponding to the `tx_search` JSONRPC method. It returns an async-iterable cursor for convenience. */
+  searchTxs(query: TendermintQuery, { pageSize = 100, page: pageOffset = 1, order = 'asc', prove = true }: WS.SearchTxsParams = {}) {
+    const q = query.toString();
+    const currentIndex = () => BigInt(page) * BigInt(pageSize) + BigInt(cursor);
+    const fetch = () => this.send<WS.SearchTxsResponse>('tx_search', q, prove, page.toString(), pageSize.toString(), order);
+    const fetchNext = () => currentIndex() < total && (page++, promise = fetch(), true);
+
+    let page = pageOffset, cursor = 0, total: bigint, promise = fetch();
+
+    return new class {
+      async *[Symbol.asyncIterator]() {
+        page = pageOffset;
+        do {
+          let response = await promise;
+          total = BigInt(response.total_count);
+          cursor = 0;
+          while (cursor < response.txs.length) {
+            yield response.txs[cursor++];
+          }
+        } while (fetchNext());
+      }
+
+      async all() {
+        const result: WS.SearchTxsResponse['txs'] = [];
+        for await (const tx of this) result.push(tx);
+        return result;
+      }
+
+      get total() { return total }
+      get page() { return page }
+      get index() { return currentIndex() }
+    }
+  }
+
   /** Send is a low level method to directly invoke an RPC method on the remote endpoint. It wraps
    * around the underlying jsonrpc protocol and returns a promise that resolves with the result of
    * the request after unmarshalling it.
    */
   send<T = unknown>(method: string, ...params: any[]) {
-    return new Promise<T>((resolve) => {
+    return new Promise<T>((resolve, reject) => {
       const id = this.#nextSubId++;
       this.socket.send({
         jsonrpc: '2.0',
@@ -215,7 +254,11 @@ export class CosmosWebSocket {
       this.socket.onMessage.oncePred(({ args: msg }) => {
         const result = unmarshal(JSON.parse(msg)) as RPCResult<T>;
         if (result.id === id) {
-          resolve(result.result);
+          if (result.result) {
+            resolve(result.result);
+          } else {
+            reject(result.error);
+          }
         }
       }, ({ args }) => {
         try {
@@ -241,10 +284,22 @@ interface TxSubscriptionMetadata {
   callback: (data: CosmosTransactionEvent) => void;
 }
 
-interface RPCResult<T = unknown> {
+type RPCResult<T = unknown> = RPCSuccess<T> | RPCError;
+interface RPCSuccess<T> {
   jsonrpc: '2.0';
   id: number;
   result: T;
+  error?: undefined;
+}
+interface RPCError {
+  jsonrpc: '2.0';
+  id: number;
+  error: {
+    code: number;
+    message: string;
+    data: string;
+  };
+  result?: undefined;
 }
 
 const escape = (str: string) => str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");

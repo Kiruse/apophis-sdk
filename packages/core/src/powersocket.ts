@@ -148,6 +148,24 @@ export class PowerSocket<T = string | Buffer> {
     return code !== 1000;
   }
 
+  /** Return a Promise that resolves when the PowerSocket has connected and is ready to `.send`. */
+  ready(timeout?: number): Promise<void> {
+    if (this.connected) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+      if (timeout) {
+        timeoutHandle = setTimeout(() => {
+          reject(Error('Connection attempt timed out'));
+        }, timeout);
+      }
+
+      this.onConnect.once(() => {
+        clearTimeout(timeoutHandle);
+        resolve();
+      });
+    });
+  }
+
   get connected() { return this.#connected }
   get reconnecting() { return this.#reconnecting }
 }

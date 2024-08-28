@@ -114,26 +114,27 @@ export interface CosmosBlockEvent {
   events: CosmosEvent[];
 }
 
-export interface CosmosTransactionResponse {
-  height: bigint;
-  // seems non-standard
-  // tx: CosmosTransaction;
-  txhash: string;
-  /** Error code, if any */
+export interface CosmosTransactionResult {
   code?: number;
-  /** Error code space, if any */
   codespace?: string;
-  /** Hex data (probably) */
   data: string;
-  /** Raw JSON string */
-  raw_log: string;
-  /** Logs corresponding to the various messages in this transaction, including triggered events. */
-  logs: CosmosLog[];
   info: string;
+  log: string;
   gas_wanted: bigint;
   gas_used: bigint;
   /** All events that occurred during this transaction, including those contained in `logs[].events`. */
   events: CosmosEvent[];
+}
+
+export interface CosmosTransactionResponse extends Omit<CosmosTransactionResult, 'log'> {
+  height: bigint;
+  // seems non-standard
+  // tx: CosmosTransaction;
+  txhash: string;
+  /** Raw JSON string */
+  raw_log: string;
+  /** Logs corresponding to the various messages in this transaction, including triggered events. */
+  logs: CosmosLog[];
 }
 
 export interface CosmosTransactionEventRaw {
@@ -461,6 +462,32 @@ export type BasicRestApi = {
     };
   };
 };
+
+export namespace WS {
+  export interface SearchTxsParams {
+    pageSize?: number | bigint;
+    page?: number;
+    order?: 'asc' | 'desc';
+    prove?: boolean;
+  }
+
+  export interface SearchTxsResponse {
+    total_count: bigint;
+    txs: SearchTxsResponseTx[];
+  }
+
+  export interface SearchTxsResponseTx {
+    hash: string;
+    height: bigint;
+    index: number;
+    /** Merkle proof of this tx */
+    proof: unknown;
+    /** Bytes of a `CosmosTransaction` */
+    tx: string;
+    /** Results corresponding to each tx in order. */
+    tx_result: CosmosTransactionResult;
+  }
+}
 
 export enum Order {
   Unspecified = 'ORDER_BY_UNSPECIFIED',
