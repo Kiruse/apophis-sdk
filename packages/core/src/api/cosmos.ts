@@ -88,6 +88,7 @@ export class CosmosWebSocket {
   #subs: Record<number, TxSubscriptionMetadata> = {};
   #nextSubId = 2; // 1 is reserved for block subscription
   #onBlock = Event<CosmosBlockEvent>();
+  #heartbeat: ReturnType<typeof setInterval> | undefined;
 
   constructor(public readonly network: NetworkConfig) {
     this.socket = new PowerSocket<string>(() => this.endpoint);
@@ -152,7 +153,15 @@ export class CosmosWebSocket {
           );
         }
       });
+      this.#heartbeat = setInterval(this.#sendHeartbeat, 30000);
     });
+
+    const clearHeartbeat = () => {
+      clearInterval(this.#heartbeat!);
+      this.#heartbeat = undefined;
+    }
+    this.socket.onDisconnect(clearHeartbeat);
+    this.socket.onClose(clearHeartbeat);
     return this;
   }
 
@@ -268,6 +277,23 @@ export class CosmosWebSocket {
         }
       });
     });
+  }
+
+  #sendHeartbeat = () => {
+    if (!this.socket.connected) return;
+    const id = this.#nextSubId++;
+    const timeout = setTimeout(() => {
+      console.warn('Heartbeat timed out, reconnecting...');
+      this.reconnect();
+    }, 30000);
+    this.socket.send({
+      jsonrpc: '2.0',
+      method: 'health',
+      id,
+    });
+    this.socket.onMessage.oncePred(({ args: msg }) => {
+      clearTimeout(timeout);
+    }, ({ args }) => JSON.parse(args).id === id);
   }
 
   get endpoint() {
