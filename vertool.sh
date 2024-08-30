@@ -9,7 +9,8 @@ fi
 command=$1
 shift
 
-filepaths="./package.json ./packages/*/package.json"
+cd "$(dirname "$0")"
+
 version=$(jq -r .version package.json)
 
 bump_version() {
@@ -49,8 +50,12 @@ suffix_clear() {
 }
 
 write_version() {
-  for filepath in $filepaths; do
+  for filepath in $(printf '%s ' "./package.json ./packages/*/package.json"); do
     jq --arg version "$1" '.version = $version' "$filepath" > "$filepath.tmp" && mv "$filepath.tmp" "$filepath"
+  done
+
+  for filepath in $(printf '%s ' "./packages/*/package.json"); do
+    jq --arg version "$1" '.peerDependencies["@crypto-me/core"] = $version' "$filepath" > "$filepath.tmp" && mv "$filepath.tmp" "$filepath"
   done
 }
 
