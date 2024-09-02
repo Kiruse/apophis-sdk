@@ -4,10 +4,10 @@ import { Account } from './account';
 import { signers } from './constants';
 
 /** The logged-in signer, if any. */
-export const signer = signal<Signer<unknown>>();
+export const signer = signal<Signer>();
 
 /** The current account, if any signer was chosen. The account itself may be yet unbound. */
-export const account = signal<Account<any>>();
+export const account = signal<Account>();
 
 /** The current account data, for comprehensive updates to account changes. */
 export const accdata = computed(() => account.value?.signal.value);
@@ -32,23 +32,30 @@ export const address = computed(() => account.value?.address);
 /** Helper signal to get the bech32 address prefix for the current network, if configured. */
 export const bech32Prefix = computed(() => network.value?.addressPrefix);
 
+/** The fee denomination of the current account. Falls back to the accoutn's network's first fee denom, then the default network's first fee denom. */
+export const feeDenom = computed(() => {
+  const denom1 = account.value?.network?.feeDenoms[0];
+  const denom2 = defaultNetwork.value?.feeDenoms[0];
+  return denom1 ?? denom2;
+});
+
 if (globalThis.localStorage) {
   accdata.subscribe(data => {
     if (data) {
-      localStorage.setItem('@crypto-me:account', JSON.stringify({
+      localStorage.setItem('@apophis-sdk:account', JSON.stringify({
         signer: signer.value!.type,
         network: data.network,
         accountIndex: data.accountIndex,
       }));
     } else {
       if (!initialized) return; // preact calls subscribe on attach too, but it's still undefined
-      localStorage.removeItem('@crypto-me:account');
+      localStorage.removeItem('@apophis-sdk:account');
     }
   });
 
   // try to restore
-  if (localStorage.getItem('@crypto-me:account')) {
-    const accountData = JSON.parse(localStorage.getItem('@crypto-me:account')!);
+  if (localStorage.getItem('@apophis-sdk:account')) {
+    const accountData = JSON.parse(localStorage.getItem('@apophis-sdk:account')!);
     initSigner(accountData);
     window.addEventListener('load', () => {
       initSigner(accountData);

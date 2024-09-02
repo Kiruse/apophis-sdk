@@ -1,4 +1,4 @@
-import { signers } from '@crypto-me/core';
+import { signers } from '@apophis-sdk/core';
 import { KeplrDirect } from './signer.direct';
 // import { KeplrAmino } from './signer.amino';
 

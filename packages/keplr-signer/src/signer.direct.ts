@@ -1,7 +1,7 @@
-import type { Account, DirectSignerPayload, NetworkConfig } from '@crypto-me/core';
+import type { Account, DirectSignerPayload, NetworkConfig } from '@apophis-sdk/core';
 import { KeplrDirectAccount } from './account';
 import { KeplrSignerBase } from './signer.base';
-import Tx from '@crypto-me/core/tx.js';
+import Tx from '@apophis-sdk/core/tx.js';
 
 /** Keplr Direct Signer.
  *

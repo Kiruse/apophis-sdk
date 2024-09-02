@@ -4,9 +4,8 @@
     "baseUrl": ".",
     "rootDir": "src",
     "outDir": "dist",
-    "paths": {
-      "@core/*": ["src/*"]
-    },
+    "types": ["node", "long"],
+    "lib": ["DOM", "ESNext"],
   },
   "include": ["src/**/*.ts"],
   "references": [

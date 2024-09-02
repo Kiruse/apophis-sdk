@@ -6,6 +6,6 @@ for package in $(printf '%s ' $dir/packages/*); do
   rm -rf dist
   name=$(jq -r .name package.json)
   echo "Building package $name"
-  npx tsc --build --clean
-  npx tsc --build
+  npm run clean
+  npm run build
 done

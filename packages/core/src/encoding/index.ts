@@ -1,1 +1,1 @@
-export * as Protobuf from './protobuf.js';
+export * as Protobuf from './protobuf/any.js';

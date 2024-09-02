@@ -2,15 +2,20 @@ import { Event } from '@kiruse/typed-events';
 import { extendDefaultMarshaller, RecaseMarshalUnit } from '@kiruse/marshal';
 import { restful } from '@kiruse/restful';
 import { detectCasing, recase } from '@kristiandupont/recase';
-import { Tx as SdkTx } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
-import { Account } from '../account.js';
-import { getRest, getWebSocketEndpoint } from '../connection.js';
-import * as Protobuf from '../encoding/protobuf.js';
-import * as signals from '../signals.js';
-import { NetworkConfig } from '../types.js';
-import type { BasicRestApi, CosmosBlockEvent, CosmosBlockEventRaw, CosmosTransactionEvent, CosmosTransactionEventRaw, WS } from '../types.cosmos.js';
-import { PowerSocket } from '../powersocket.js';
-import { fromBase64, toBase64, toHex } from '../utils.js';
+import { sha256 } from '@noble/hashes/sha256';
+import { Fee, Tx as SdkTx, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
+import { Account } from './account.js';
+import { getRest, getWebSocketEndpoint } from './connection.js';
+import { Any } from './encoding/protobuf/any.js';
+import { PowerSocket } from './powersocket.js';
+import * as signals from './signals.js';
+import type { NetworkConfig } from './types.js';
+import { fromBase64, toBase64, toHex } from './utils.js';
+import { TendermintQuery } from './query.js';
+import { Tx } from './tx.js';
+import type { BasicRestApi, BlockEvent, BlockEventRaw, TransactionEvent, TransactionEventRaw, WS } from './types.sdk.js';
+import { Coin } from 'cosmjs-types/cosmos/base/v1beta1/coin.js';
+import { BytesMarshalUnit } from './marshal.js';
 
 type Unsub = () => void;
 
@@ -19,7 +24,7 @@ const { marshal, unmarshal } = extendDefaultMarshaller([
     key => recase(detectCasing(key), 'camel')(key),
     key => recase(detectCasing(key), 'snake')(key),
   ),
-  Protobuf.AnyMarshalUnit,
+  BytesMarshalUnit,
 ]);
 
 /** This is the basic Cosmos REST API that is commonly used when interfacing with the blockchain.
@@ -62,24 +67,63 @@ export const Cosmos = new class {
     return this.#sockets.get(network)!;
   }
 
-  async getAccountInfo(account: Account<any>) {
-    const { network, address } = account;
+  async getAccountInfo(network: NetworkConfig, address: string) {
     if (!network || !address) throw new Error('Account not bound to a network');
-    const response = await this.rest(account.network).cosmos.auth.v1beta1.account_info[address]('GET');
+    const { info } = await this.rest(network).cosmos.auth.v1beta1.account_info[address]('GET');
     return {
-      accountNumber: response.account_number,
-      address: response.address,
-      publicKey: response.pub_key,
-      sequence: response.sequence,
+      accountNumber: info.account_number,
+      address: info.address,
+      publicKey: info.pub_key,
+      sequence: info.sequence,
     };
   }
 
-  get cosmwasm() {
-    return this.rest().cosmwasm.wasm.v1;
+  cosmwasm(network?: NetworkConfig) {
+    return this.rest(network).cosmwasm.wasm.v1;
   }
 
-  get tx() {
-    return this.rest().cosmos.tx.v1beta1;
+  /** Create a new transaction with the given messages. */
+  tx = (messages: Any[], opts?: Omit<TxBody, 'messages'> & { gas?: Fee }) => new Tx(messages, opts);
+  coin = (amount: bigint | number, denom: string): Coin => Coin.fromPartial({ amount: amount.toString(), denom });
+
+  txs(network?: NetworkConfig) {
+    return this.rest(network).cosmos.tx.v1beta1.txs;
+  }
+
+  /** Helper function to decode the bytes of a Cosmos SDK transaction.
+   *
+   * **Note** that the resulting type is not the same as this `Tx` class of this library, but instead
+   * from `cosmjs-types/cosmos/tx/v1beta1/tx` which is directly built from the Cosmos SDK protobuf
+   * definitions.
+   */
+  decodeTx(tx: SdkTx | string | Uint8Array) {
+    if (typeof tx === 'string') tx = fromBase64(tx);
+    if (tx instanceof Uint8Array) return SdkTx.decode(tx);
+    return tx;
+  }
+
+  /** Wrapper around `decodeTx` that attempts to decode the tx. If it fails, returns the original tx bytes. */
+  tryDecodeTx(tx: SdkTx | string | Uint8Array) {
+    try {
+      return this.decodeTx(tx);
+    } catch {
+      return typeof tx === 'string' ? tx : tx instanceof Uint8Array ? toBase64(tx) : tx;
+    }
+  }
+
+  /** Helper function to compute the transaction hash of a Cosmos SDK transaction. This hash can then
+   * be used to query the transaction on the blockchain.
+   */
+  getTxHash(tx: SdkTx | string) {
+    let bytes: Uint8Array;
+    if (typeof tx === 'string') {
+      bytes = fromBase64(tx);
+    } else {
+      bytes = SdkTx.encode(tx).finish();
+    }
+
+    const buffer = sha256(bytes);
+    return toHex(new Uint8Array(buffer));
   }
 }
 
@@ -87,7 +131,7 @@ export class CosmosWebSocket {
   socket: PowerSocket<string>;
   #subs: Record<number, TxSubscriptionMetadata> = {};
   #nextSubId = 2; // 1 is reserved for block subscription
-  #onBlock = Event<CosmosBlockEvent>();
+  #onBlock = Event<BlockEvent>();
   #heartbeat: ReturnType<typeof setInterval> | undefined;
 
   constructor(public readonly network: NetworkConfig) {
@@ -114,18 +158,18 @@ export class CosmosWebSocket {
           // ignore ACK messages (for now)
           if (!result.result || !Object.entries(result.result).length) return;
           if (result.id === 1) {
-            const { data: { value: { block, result_finalize_block } } } = (result.result as CosmosBlockEventRaw);
+            const { data: { value: { block, result_finalize_block } } } = (result.result as BlockEventRaw);
             this.#onBlock.emit({
               header: block.header,
               lastCommit: block.last_commit,
               events: result_finalize_block?.events ?? [],
-              txs: block.data?.txs.map(tryDecodeCosmosTx) ?? [],
+              txs: block.data?.txs.map(Cosmos.tryDecodeTx) ?? [],
               evidence: block.evidence.evidence,
               txResults: result_finalize_block?.tx_results ?? [],
             });
           } else if (result.id in this.#subs) {
             // TODO: should handle multiple subscriptions for the same tx + query
-            const { data: { value: { tx_result: tx } } } = result.result as CosmosTransactionEventRaw;
+            const { data: { value: { tx_result: tx } } } = result.result as TransactionEventRaw;
             if ('code' in tx.result) {
               this.#subs[result.id]?.callback({
                 height: tx.height,
@@ -136,10 +180,10 @@ export class CosmosWebSocket {
             } else {
               this.#subs[result.id]?.callback({
                 height: tx.height,
-                txhash: await getCosmosTxHash(tx.tx),
+                txhash: await Cosmos.getTxHash(tx.tx),
                 index: tx.index,
                 result: tx.result,
-                tx: decodeCosmosTx(tx.tx),
+                tx: Cosmos.decodeTx(tx.tx),
               });
             }
           }
@@ -175,7 +219,7 @@ export class CosmosWebSocket {
     return this;
   }
 
-  onBlock(callback: (block: CosmosBlockEvent) => void) {
+  onBlock(callback: (block: BlockEvent) => void) {
     return this.#onBlock(({ args: block }) => callback(block));
   }
 
@@ -186,7 +230,7 @@ export class CosmosWebSocket {
    * transactions, you should consider using a single subscription and filtering the transactions
    * on the client-side.
    */
-  onTx(query: TendermintQuery | null, callback: (tx: CosmosTransactionEvent) => void): Unsub {
+  onTx(query: TendermintQuery | null, callback: (tx: TransactionEvent) => void): Unsub {
     query ??= new TendermintQuery();
     query.exact('tm.event', 'Tx');
 
@@ -307,7 +351,7 @@ interface TxSubscriptionMetadata {
   type: 'block' | 'tx';
   id: number;
   query?: TendermintQuery;
-  callback: (data: CosmosTransactionEvent) => void;
+  callback: (data: TransactionEvent) => void;
 }
 
 type RPCResult<T = unknown> = RPCSuccess<T> | RPCError;
@@ -326,96 +370,4 @@ interface RPCError {
     data: string;
   };
   result?: undefined;
-}
-
-const escape = (str: string) => str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-
-export class TendermintQuery {
-  private _query: string[] = [];
-
-  getValue(value: number | bigint | string | Date) {
-    if (typeof value === 'number' || typeof value === 'bigint') {
-      return value.toString();
-    } else if (typeof value === 'string') {
-      return `'${escape(value)}'`;
-    } else {
-      return value.toISOString();
-    }
-  }
-
-  exact(field: string, value: number | string | Date) {
-    this._query.push(`${field}=${this.getValue(value)}`);
-    return this;
-  }
-
-  compare(field: string, op: `${'<' | '>'}${'' | '='}`, value: number | bigint | Date) {
-    this._query.push(`${field}${op}${this.getValue(value)}`);
-    return this;
-  }
-
-  exists(field: string) {
-    this._query.push(`${field} EXISTS`);
-    return this;
-  }
-
-  contains(field: string, value: string) {
-    this._query.push(`${field} CONTAINS '${escape(value)}'`);
-    return this;
-  }
-
-  clone() {
-    const q = new TendermintQuery();
-    q._query = this._query.slice();
-    return q;
-  }
-
-  toString() {
-    return this._query.join(' AND ');
-  }
-
-  static AND(lhs: TendermintQuery, rhs: TendermintQuery) {
-    const q = new TendermintQuery();
-    q._query.push(`(${lhs}) AND (${rhs})`);
-    return q;
-  }
-
-  static OR(lhs: TendermintQuery, rhs: TendermintQuery) {
-    const q = new TendermintQuery();
-    q._query.push(`(${lhs}) OR (${rhs})`);
-    return q;
-  }
-}
-
-/** Helper function to decode the bytes of a Cosmos SDK transaction.
- *
- * **Note** that the resulting type is not the same as this `Tx` class of this library, but instead
- * from `cosmjs-types/cosmos/tx/v1beta1/tx` which is directly built from the Cosmos SDK protobuf
- * definitions.
- */
-export function decodeCosmosTx(bytes: string | Uint8Array) {
-  if (typeof bytes === 'string') bytes = fromBase64(bytes);
-  return SdkTx.decode(bytes);
-}
-
-function tryDecodeCosmosTx(bytes: string | Uint8Array) {
-  try {
-    return decodeCosmosTx(bytes);
-  } catch {
-    return typeof bytes === 'string' ? bytes : toBase64(bytes);
-  }
-}
-
-/** Helper function to compute the transaction hash of a Cosmos SDK transaction. This hash can then
- * be used to query the transaction on the blockchain.
- */
-export async function getCosmosTxHash(tx: SdkTx | string) {
-  let bytes: Uint8Array;
-  if (typeof tx === 'string') {
-    bytes = fromBase64(tx);
-  } else {
-    bytes = SdkTx.encode(tx).finish();
-  }
-
-  const buffer = await crypto.subtle.digest('SHA-256', bytes);
-  return toHex(new Uint8Array(buffer));
 }

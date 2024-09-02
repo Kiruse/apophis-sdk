@@ -1,10 +1,10 @@
-# Crypto-Me Integrations
+# Apophis SDK Integrations
 We distinguish between two types of integrations:
 
 1. **Wallet Integrations**
 2. **Frontend Integrations**
 
-You are free to contribute your integrations as Pull Requests to this repository for publishing in the same `@crypto-me` npm namespace, or to simply publish them on your own.
+You are free to contribute your integrations as Pull Requests to this repository for publishing in the same `@apophis-sdk` npm namespace, or to simply publish them on your own.
 
 # Wallet Integrations
 See the [Keplr Integration](../packages/keplr-signer/README.md) for a reference implementation.
@@ -21,7 +21,7 @@ Wallets are generally divided into 3 major components:
 - `Account`s, and
 - Transactions (`Tx`)
 
-The `Signer` is the primary interface which the framework consumer will interact with. It provides the developer with a mutable `Account` object which represents the user. This `Account` object should be enriched by the Signer during creation (using it's `.account()` method) with enough information to construct & sign the complete transaction from a `Tx` object. Finally, the `Tx` can be `.broadcast()` through the `Signer`. The only knowledge that should be required from the developer is which networks they support, and what that network's payload looks like. Typically, a developer will support only one type of ecosystem. If they wish to support different ecosystems, they will likely create additional libraries for each - there's only so much one can generalize without sacrificing ease of use.
+The `Signer` is the primary interface which the framework consumer will interact with. It provides the developer with a mutable `Account` object which represents the user. This `Account` object should be enriched by the Signer during creation (using it's `.account()` method) with enough information to construct & sign the complete transaction from a `Tx` object. Finally, the `Tx` can be `.broadcast()` through the `Signer`. The only knowledge that should be required from the developer is which networks they support, and what that network's payload looks like.
 
 ***TODO: Diagram***
 

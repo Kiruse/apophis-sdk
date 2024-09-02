@@ -1,4 +1,4 @@
-import * as signals from '@crypto-me/core/signals.js';
+import * as signals from '@apophis-sdk/core/signals.js';
 import React from 'preact/compat';
 import CopyIcon from './icons/copy-icon.js';
 import LogoutIcon from './icons/logout-icon.js';

@@ -1,12 +1,12 @@
-import { DirectSignerPayload, NetworkConfig } from '@crypto-me/core';
-import { Account } from '@crypto-me/core/account.js';
-import { Cosmos } from '@crypto-me/core/api/index.js';
+import { DirectSignerPayload, NetworkConfig } from '@apophis-sdk/core';
+import { Account } from '@apophis-sdk/core/account.js';
+import { Cosmos } from '@apophis-sdk/core/api/index.js';
 import { AuthInfo, TxBody, TxRaw } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { SignMode } from 'cosmjs-types/cosmos/tx/signing/v1beta1/signing';
 import Long from 'long';
-import * as Protobuf from '@crypto-me/core/encoding/protobuf.js';
-import type Tx from '@crypto-me/core/tx.js';
-import { fromBase64 } from '@crypto-me/core/utils.js';
+import * as Protobuf from '@apophis-sdk/core/encoding/protobuf.js';
+import type Tx from '@apophis-sdk/core/tx.js';
+import { fromBase64 } from '@apophis-sdk/core/utils.js';
 
 const accounts: WeakRef<KeplrDirectAccount>[] = [];
 
@@ -22,7 +22,7 @@ export class KeplrDirectAccount extends Account<Tx<DirectSignerPayload>> {
   protected async onNetworkChange(network: NetworkConfig, accountIndex: number) {
     this.signal.value = { loading: true };
 
-    const { address, publicKey } = await getAddressAndPubkey(network, accountIndex);
+    const { address, pubkey: publicKey, algo } = await getAddressAndPubkey(network, accountIndex);
 
     // network & address needed by `Cosmos.getAccountInfo()`
     this.signal.value = { loading: true, network, address };
@@ -33,6 +33,7 @@ export class KeplrDirectAccount extends Account<Tx<DirectSignerPayload>> {
     this.signal.value = {
       loading: false,
       network,
+      algo,
       address,
       accountIndex,
       publicKey,
@@ -85,8 +86,7 @@ async function getAddressAndPubkey(network: NetworkConfig, accountIndex: number 
   const offlineSigner = await window.keplr.getOfflineSigner(network.chainId);
   const accounts = await offlineSigner.getAccounts();
   if (!accounts[Number(accountIndex)]) throw new Error('Account not found');
-  const { address, pubkey } = accounts[Number(accountIndex)];
-  return { address, publicKey: pubkey };
+  return accounts[Number(accountIndex)];
 }
 
 if (globalThis.window) {

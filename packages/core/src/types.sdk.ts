@@ -1,29 +1,31 @@
-import { RestMethods } from '@kiruse/restful';
+// The types here are directly related to Cosmos SDK types.
+import type { RestMethods } from '@kiruse/restful';
+import type { Coin } from 'cosmjs-types/cosmos/base/v1beta1/coin';
 import { BroadcastMode } from 'cosmjs-types/cosmos/tx/v1beta1/service.js';
 import type { Tx as CosmosTransaction } from 'cosmjs-types/cosmos/tx/v1beta1/tx.js';
-import { Protobuf } from './encoding';
+import type { Protobuf } from './encoding';
 
 export { BroadcastMode, CosmosTransaction };
 
-export interface CosmosBlock {
-  header: CosmosBlockHeader;
+export interface Block {
+  header: BlockHeader;
   data: {
     /** Transactions of this block, in base64 bytes. */
     txs: string[];
   };
   evidence: {
-    evidence: CosmosEvidence[];
+    evidence: Evidence[];
   };
-  last_commit: CosmosBlockLastCommit;
+  last_commit: BlockLastCommit;
 }
 
-export interface CosmosBlockHeader {
-  version: CosmosBlockHeaderVersions;
+export interface BlockHeader {
+  version: BlockHeaderVersions;
   /** Same as the Chain ID we should already know */
   chain_id: string;
   height: bigint;
   time: Date;
-  last_block_id: CosmosBlockId;
+  last_block_id: BlockId;
   /** Base64 bytes */
   last_commit_hash: string;
   /** Base64 bytes */
@@ -40,7 +42,7 @@ export interface CosmosBlockHeader {
   proposer_address: string;
 }
 
-export interface CosmosBlockId {
+export interface BlockId {
   /** Base64 bytes */
   hash: string;
   parts: {
@@ -50,19 +52,19 @@ export interface CosmosBlockId {
   };
 }
 
-export interface CosmosBlockHeaderVersions {
+export interface BlockHeaderVersions {
   block: bigint;
   app: bigint;
 }
 
-export interface CosmosBlockLastCommit {
+export interface BlockLastCommit {
   height: bigint;
   round: number;
-  block_id: CosmosBlockId;
-  signatures: CosmosBlockSignature[];
+  block_id: BlockId;
+  signatures: BlockSignature[];
 }
 
-export interface CosmosBlockSignature {
+export interface BlockSignature {
   /** An enum in SHOUT_CASE */
   block_id_flag: string;
   validator_address: string;
@@ -71,14 +73,14 @@ export interface CosmosBlockSignature {
   signature: string;
 }
 
-export type CosmosEvidence = unknown;
+export type Evidence = unknown;
 
-export interface CosmosBlockEventRaw {
+export interface BlockEventRaw {
   data: {
     type: string;
     value: {
-      block: CosmosBlock;
-      block_id: CosmosBlockId;
+      block: Block;
+      block_id: BlockId;
       /** Additional data on the finalized block.
        *
        * **Note:** I am not certain if this property is standard. Exert caution when using it.
@@ -88,15 +90,15 @@ export interface CosmosBlockEventRaw {
         /** All events that happened in this block, in order. */
         events: CosmosEvent[];
         /** Results of each transaction in this block. */
-        tx_results: CosmosTransactionResponse[];
+        tx_results: TransactionResponse[];
       };
     };
   };
   /** A dictionary of event types to encountered values.
    *
-   * **Note** that these events are not the same as the events in `CosmosTransactionResponse`. Rather,
+   * **Note** that these events are not the same as the events in `TransactionResponse`. Rather,
    * these events are aggregates of all events that occurred in the block by type. Unlike
-   * `CosmosTransactionResponse`, the exact order of events is not preserved, and it is not possible
+   * `TransactionResponse`, the exact order of events is not preserved, and it is not possible
    * to determine which event occurred in which transaction.
    */
   events: Record<string, string[]>;
@@ -104,17 +106,17 @@ export interface CosmosBlockEventRaw {
   query: string;
 }
 
-export interface CosmosBlockEvent {
-  header: CosmosBlockHeader;
-  lastCommit: CosmosBlockLastCommit;
-  /** SDK transactions found in this block. While Crypto-Me attempts to deserialize them, malformed transactions are kept as base64 byte strings. */
+export interface BlockEvent {
+  header: BlockHeader;
+  lastCommit: BlockLastCommit;
+  /** SDK transactions found in this block. While Apophis SDK attempts to deserialize them, malformed transactions are kept as base64 byte strings. */
   txs: (CosmosTransaction | string)[];
-  txResults: CosmosTransactionResponse[];
-  evidence: CosmosEvidence[];
+  txResults: TransactionResponse[];
+  evidence: Evidence[];
   events: CosmosEvent[];
 }
 
-export interface CosmosTransactionResult {
+export interface TransactionResult {
   code?: number;
   codespace?: string;
   data: string;
@@ -126,7 +128,7 @@ export interface CosmosTransactionResult {
   events: CosmosEvent[];
 }
 
-export interface CosmosTransactionResponse extends Omit<CosmosTransactionResult, 'log'> {
+export interface TransactionResponse extends Omit<TransactionResult, 'log'> {
   height: bigint;
   // seems non-standard
   // tx: CosmosTransaction;
@@ -137,7 +139,7 @@ export interface CosmosTransactionResponse extends Omit<CosmosTransactionResult,
   logs: CosmosLog[];
 }
 
-export interface CosmosTransactionEventRaw {
+export interface TransactionEventRaw {
   data: {
     type: string;
     value: {
@@ -159,8 +161,8 @@ export interface CosmosTransactionEventRaw {
   };
   /** A dictionary of event types to encountered values.
    *
-   * **Note** that these events essentially contain the same information as `CosmosTransactionResponse.events`,
-   * but are aggregated by type. Unlike `CosmosTransactionResponse`, the exact order of events is not preserved.
+   * **Note** that these events essentially contain the same information as `TransactionResponse.events`,
+   * but are aggregated by type. Unlike `TransactionResponse`, the exact order of events is not preserved.
    * However, events in their correct ordering are also contained in this response at
    * `.data.value.TxResult.result.events`.
    */
@@ -169,7 +171,7 @@ export interface CosmosTransactionEventRaw {
   query: string;
 }
 
-export type CosmosTransactionEvent = {
+export type TransactionEvent = {
   height: bigint;
   index: number;
 } & (
@@ -226,7 +228,9 @@ export interface Pagination {
 }
 
 export interface PaginationResponse {
-  next_key: string;
+  /** Next key to pass to your next request. `null` if this is the last page. */
+  next_key: string | null;
+  /** Total number of records available. */
   total: bigint;
 }
 
@@ -237,10 +241,47 @@ export type BasicRestApi = {
         account_info: {
           [address: string]: RestMethods<{
             get(): {
-              account_number: bigint;
-              address: string;
-              pub_key: Protobuf.Any;
-              sequence: bigint;
+              info: {
+                account_number: bigint;
+                address: string;
+                pub_key: Protobuf.Any;
+                sequence: bigint;
+              };
+            };
+          }>;
+        };
+      };
+    };
+
+    bank: {
+      v1beta1: {
+        balances: {
+          [address: string]: RestMethods<{
+            get(opts?: Partial<Pagination> & {
+              /** Resolve the denom into a human readable form using its metadata. */
+              resolve_denom?: boolean,
+            }): {
+              balances: Coin[];
+              pagination: PaginationResponse;
+            };
+          }> & {
+            by_denom: RestMethods<{
+              get(opts: { denom: string }): {
+                balance: Coin;
+              };
+            }>;
+          };
+        };
+
+        denoms_metadata: RestMethods<{
+          get(opts?: Pagination): {
+            metadata: CoinMetadata[];
+            pagination: PaginationResponse;
+          };
+        }> & {
+          [denom: string]: RestMethods<{
+            get(): {
+              metadata: CoinMetadata;
             };
           }>;
         };
@@ -281,8 +322,8 @@ export type BasicRestApi = {
           blocks: {
             [height: string]: RestMethods<{
               get(): {
-                block_id: CosmosBlockId;
-                block: CosmosBlock;
+                block_id: BlockId;
+                block: Block;
               };
             }>;
           };
@@ -309,8 +350,7 @@ export type BasicRestApi = {
         };
 
         txs: RestMethods<{
-          get(opts: Pagination & {
-            events: string[];
+          get(opts: Partial<Pagination> & {
             query: string;
             order?: Order;
             page?: bigint;
@@ -318,21 +358,21 @@ export type BasicRestApi = {
           }): PaginationResponse & {
             total: bigint;
             txs: CosmosTransaction[];
-            tx_responses: CosmosTransactionResponse[];
+            tx_responses: TransactionResponse[];
           };
 
           post(body: {
             mode: BroadcastMode;
             tx_bytes: string | Uint8Array;
           }): {
-            tx_response: CosmosTransactionResponse;
+            tx_response: TransactionResponse;
           };
         }> & ({
           block: {
             [height: string]: RestMethods<{
               get(opts: Pagination): {
-                block_id: CosmosBlockId;
-                block: CosmosBlock;
+                block_id: BlockId;
+                block: Block;
                 txs: CosmosTransaction[];
                 pagination: PaginationResponse;
               };
@@ -342,13 +382,13 @@ export type BasicRestApi = {
           [hash: string]: RestMethods<{
             get(): {
               tx: CosmosTransaction;
-              tx_response: CosmosTransactionResponse;
+              tx_response: TransactionResponse;
             };
           }>;
         });
 
         simulate: RestMethods<{
-          post(body: { tx: CosmosTransaction, tx_bytes: string | Uint8Array }): {
+          post(body: { tx_bytes: string | Uint8Array }): {
             gas_info: {
               gas_used: bigint;
               gas_wanted: bigint;
@@ -463,6 +503,26 @@ export type BasicRestApi = {
   };
 };
 
+export interface CoinMetadata {
+  /** Base denomination name */
+  base: string;
+  denom_units: {
+    denom: string;
+    /** Aliases for this denomination, if any. */
+    aliases?: string[];
+    /** Number of decimal places. The base unit typically has 0 and is prefixed with u
+     * (latinization of mu, for micro).
+     */
+    exponent: number;
+  }[];
+  description?: string;
+  display: string;
+  name: string;
+  symbol: string;
+  uri?: string;
+  uri_hash?: string;
+}
+
 export namespace WS {
   export interface SearchTxsParams {
     pageSize?: number | bigint;
@@ -485,7 +545,7 @@ export namespace WS {
     /** Bytes of a `CosmosTransaction` */
     tx: string;
     /** Results corresponding to each tx in order. */
-    tx_result: CosmosTransactionResult;
+    tx_result: TransactionResult;
   }
 }
 
@@ -493,4 +553,12 @@ export enum Order {
   Unspecified = 'ORDER_BY_UNSPECIFIED',
   Ascending = 'ORDER_BY_ASC',
   Descending = 'ORDER_BY_DESC',
+}
+
+/** Same as SDK `Fee`, but with proper optionality */
+export interface Gas {
+  amount: Coin[];
+  gasLimit: bigint;
+  payer?: string;
+  granter?: string;
 }

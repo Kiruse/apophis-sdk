@@ -12,7 +12,7 @@ import { Event } from '@kiruse/typed-events';
  * heartbeats to maintain a connection. Some connections can degrade over time when not in active
  * use, and heartbeats can help keep the connection alive and responsive.
  */
-export class PowerSocket<T = string | Buffer> {
+export class PowerSocket<T = string> {
   #ws: WebSocket | undefined;
   #connected = false;
   #reconnecting = false;
@@ -37,7 +37,11 @@ export class PowerSocket<T = string | Buffer> {
   /** Event emitted whenever an error is encountered, either from the underlying WebSocket or this library's extension. */
   readonly onError = Event<any>();
 
-  constructor(public url: string | (() => string)) {}
+  constructor(
+    public url: string | (() => string),
+    public marshal: (data: any) => any = (data) => data,
+    public unmarshal: (data: any) => unknown = (data) => data,
+  ) {}
 
   /**
    * Attempt to connect to the remote server.
@@ -89,7 +93,7 @@ export class PowerSocket<T = string | Buffer> {
 
   send(data: any) {
     if (!this.#ws) throw new PowerSocketError('WebSocket not connected');
-    this.#ws.send(JSON.stringify(this.marshalMessage(data)));
+    this.#ws.send(JSON.stringify(this.marshal(data)));
     return this;
   }
 
@@ -128,17 +132,7 @@ export class PowerSocket<T = string | Buffer> {
   }
 
   #onMessage = (e: MessageEvent) => {
-    this.onMessage.emit(this.unmarshalMessage(e.data) as any);
-  }
-
-  /** Transformations to apply to the message to be sent to the remote. Defaults to no transformations. */
-  marshalMessage(data: any): any {
-    return data;
-  }
-
-  /** Transformations to apply to the body of a message received from the remote. Defaults to no transformations. */
-  unmarshalMessage(data: any): unknown {
-    return data;
+    this.onMessage.emit(this.unmarshal(e.data) as any);
   }
 
   /** Whether the socket should attempt to reconnect to the remote endpoint. The standard behavior
