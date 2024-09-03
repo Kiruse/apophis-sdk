@@ -1,4 +1,4 @@
-import { type NetworkConfig, signals, type Signer, signers, Tx } from '@apophis-sdk/core';
+import { type NetworkConfig, signals, type Signer, signers } from '@apophis-sdk/core';
 import cx from 'classnames';
 import React, { useLayoutEffect } from 'preact/compat';
 
@@ -6,7 +6,7 @@ export interface WalletSelectorProps {
   networks: NetworkConfig[];
   class?: string;
   style?: React.CSSProperties;
-  onSelect?(signer: Signer<Tx<unknown, unknown>>): void;
+  onSelect?(signer: Signer): void;
 }
 
 export interface WalletChoiceProps {
