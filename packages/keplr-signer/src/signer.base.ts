@@ -28,20 +28,18 @@ export abstract class KeplrSignerBase implements Signer {
   }
 
   abstract account(): Account;
-  abstract tx(body: any): Tx;
 
   async broadcast(tx: Tx): Promise<string> {
-    const { network, bytes } = tx;
-    if (!network || !bytes) throw new Error('Unsigned transaction');
+    const { network } = tx;
+    if (!network) throw new Error('Unsigned transaction');
 
     try {
-      const hashbytes = await window.keplr!.sendTx(network.chainId, bytes, BroadcastMode.Async);
+      const hashbytes = await window.keplr!.sendTx(network.chainId, tx.bytes(), BroadcastMode.Async);
       const hash = toHex(hashbytes);
       tx.confirm(hash);
       return hash;
-    } catch (error) {
-      // TODO: can probably compute the tx hash here from the tx
-      tx.reject('', error);
+    } catch (error: any) {
+      tx.reject(tx.hash!, error);
       throw error;
     }
   }
