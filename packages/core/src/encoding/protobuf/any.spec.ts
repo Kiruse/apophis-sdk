@@ -2,10 +2,10 @@ import { describe, expect, test } from 'bun:test';
 import { MsgSend } from 'cosmjs-types/cosmos/bank/v1beta1/tx.js';
 import { Any, AnyMarshalUnit } from './any.js';
 import { createMarshaller, defineMarshalUnit, extendMarshaller, morph, pass } from '@kiruse/marshal';
-import { fromUtf8, toBase64, toUtf8 } from 'src/utils.js';
-import { AnyTypeUrlSymbol } from 'src/constants.js';
-import { fromAnyable, isAnyable, isMarshalledAny, toAnyable } from 'src/helpers.js';
-import { NetworkConfig } from 'src/types.js';
+import { fromUtf8, toBase64, toUtf8 } from '../../utils.js';
+import { AnyTypeUrlSymbol } from '../../constants.js';
+import { fromAnyable, isAnyable, isMarshalledAny, toAnyable } from '../../helpers.js';
+import { NetworkConfig } from '../../types.js';
 
 describe('Any', () => {
   test('Un/marshal', () => {

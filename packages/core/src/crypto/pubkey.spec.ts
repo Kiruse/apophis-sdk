@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { fromHex } from '../utils';
-import { pubkey } from './pubkey';
-import { Any } from '../encoding/protobuf/any';
-import { NetworkConfig } from 'src/types';
+import { fromHex } from '../utils.js';
+import { pubkey } from './pubkey.js';
+import { Any } from '../encoding/protobuf/any.js';
+import { NetworkConfig } from '../types.js';
 
 const network: NetworkConfig = {
   chainId: '',

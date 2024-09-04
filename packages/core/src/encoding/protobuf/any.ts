@@ -1,7 +1,7 @@
 import { defineMarshalUnit, extendDefaultMarshaller, Marshaller, MarshalUnit, morph, pass } from '@kiruse/marshal';
 import { isAnyable, isMarshalledAny } from '../../helpers.js';
 import type { NetworkConfig } from '../../types.js';
-import { fromBase64, toBase64 } from 'src/utils.js';
+import { fromBase64, toBase64 } from '../../utils.js';
 
 /** Marshal unit for converting an `Any` type to the proper JSON variant & back for transmission. */
 export const AnyMarshalUnit = defineMarshalUnit(
