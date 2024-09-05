@@ -32,13 +32,6 @@ export const address = computed(() => account.value?.address);
 /** Helper signal to get the bech32 address prefix for the current network, if configured. */
 export const bech32Prefix = computed(() => network.value?.addressPrefix);
 
-/** The fee denomination of the current account. Falls back to the accoutn's network's first fee denom, then the default network's first fee denom. */
-export const feeDenom = computed(() => {
-  const denom1 = account.value?.network?.feeDenoms[0];
-  const denom2 = defaultNetwork.value?.feeDenoms[0];
-  return denom1 ?? denom2;
-});
-
 if (globalThis.localStorage) {
   accdata.subscribe(data => {
     if (data) {

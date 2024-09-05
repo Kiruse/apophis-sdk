@@ -1,33 +1,9 @@
-import { Decimal } from '@kiruse/decimal';
 import { Signal } from '@preact/signals-core';
 import type { Account } from './account.js';
+import type { NetworkConfig } from './networks.js';
 import type { Tx } from './tx.js';
 
-export interface NetworkConfig {
-  chainId: string;
-  prettyName: string;
-  /** The unique registry name. */
-  name: string;
-  /** An optional prefix that should be ignored when shortening addresses in the UI. */
-  addressPrefix?: string;
-  /** Optional slip44 coin type for HD wallets. This is only relevant for local signers, not for
-   * third party signers like Metamask or Keplr. Local signers are typically used on backends or in
-   * tools, but not in the frontend.
-   *
-   * **Note:** Often, we have heuristics to choose a good default. For example, most Cosmos chains
-   * use 118. Some chains like Terra use 330. You may find the coin type in the official
-   * [SLIP44 Registry](https://github.com/satoshilabs/slips/blob/master/slip-0044.md) or in the
-   * [Cosmos Chain Registry](https://github.com/cosmos/chain-registry).
-   * However, the exact coin type only matters when attempting to load the same mnemonic into a
-   * different wallet. Thus, when used for local tooling, as long as you're consistent about the
-   * coin type, it doesn't actually matter which value you use.
-   */
-  slip44?: number;
-  /** The available fee denominations. */
-  feeDenoms: string[];
-  /** The default gas price. */
-  gasPrice: Decimal | number;
-}
+export { NetworkConfig };
 
 /** Signers provide write access to on-chain data. They do not provide read access. They allow
  * passing messages to the user for signing, and then broadcasting these signed messages to the

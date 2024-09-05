@@ -48,11 +48,11 @@ export class Tx {
   }
 
   computeGas(network: NetworkConfig, size: bigint | number, populate?: boolean): Gas {
-    const data = getGasData(network);
+    const [cfg] = network.gas;
     const gas = Decimal.parse(size);
-    const amount = gas.mul(data.price).rebase(0).valueOf() + 1n;
+    const amount = gas.mul(Decimal.parse(cfg.lowPrice ?? cfg.avgPrice)).rebase(0).valueOf() + 1n;
     const result = {
-      amount: [Cosmos.coin(amount, data.denoms[0])],
+      amount: [Cosmos.coin(amount, cfg.asset.denom)],
       gasLimit: gas.valueOf(),
     } satisfies Gas;
     if (populate) this.gas = result;
@@ -79,11 +79,12 @@ export class Tx {
   }
 
   async estimateGas(account: Account, populate?: boolean): Promise<Gas> {
-    if (!account.network) throw new Error('Account not bound');
+    const { network } = account;
+    if (!network) throw new Error('Account not bound');
     const { gas_info } = await this.simulate(account);
     if (!gas_info) throw new Error('Failed to simulate transaction');
-    const units = Decimal.parse(gas_info.gas_used).mul(getGasData(account.network).multiplier).rebase(0);
-    return this.computeGas(account.network, units.valueOf(), populate);
+    const units = Decimal.parse(gas_info.gas_used).mul(Decimal.parse(network.gasFactor ?? config.gasFactor)).rebase(0);
+    return this.computeGas(network, units.valueOf(), populate);
   }
 
   /** Convenience method to broadcast this transaction to the network. Calls the signer's `broadcast` method. */
@@ -157,9 +158,3 @@ export class Tx {
   get hash() { return this.#hash ?? Cosmos.getTxHash(this.fullSdkTx()) }
   get error() { return this.#error }
 }
-
-const getGasData = (network: NetworkConfig) => ({
-  price: typeof network.gasPrice === 'number' ? Decimal.parse(network.gasPrice) : network.gasPrice,
-  denoms: network.feeDenoms,
-  multiplier: Decimal.parse(config.gasMultiplier ?? 1.2),
-});

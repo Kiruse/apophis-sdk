@@ -7,8 +7,8 @@ export const AnyTypeUrlSymbol = Symbol('Any.TypeUrl');
 export const signers: Signer[] = [];
 
 export const config = {
-  /** Multiplier for the gas fee estimate, to avoid under-estimation. Should generally be held low
-   * to avoid overspending, as unlike Ethereum chains, Cosmos chains do not refund unused gas.
+  /** Multiplier for the gas fee estimate to avoid under-estimation. Should generally be held low
+   * to avoid overspending as, unlike Ethereum chains, Cosmos chains do not refund unused gas.
    */
-  gasMultiplier: 1.2,
+  gasFactor: 1.2,
 };
