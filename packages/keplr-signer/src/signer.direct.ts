@@ -1,10 +1,11 @@
-import { Account, Cosmos, type NetworkConfig } from '@apophis-sdk/core';
+import { Account, Any, Cosmos, type NetworkConfig } from '@apophis-sdk/core';
 import { Tx } from '@apophis-sdk/core/tx.js';
 import { pubkey } from '@apophis-sdk/core/crypto/pubkey.js';
 import { AuthInfo, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import Long from 'long';
 import { KeplrSignerBase } from './signer.base';
-import { fromBase64 } from '@apophis-sdk/core/utils.js';
+import { fromBase64, toHex } from '@apophis-sdk/core/utils.js';
+import { TendermintQuery } from '@apophis-sdk/core/query.js';
 
 const accounts: WeakRef<KeplrDirectAccount>[] = [];
 
@@ -114,10 +115,26 @@ if (globalThis.window) {
         ref.bind(ref.network, ref.accountIndex);
       }
     }
-    let idx = accounts.findIndex((account) => !account.deref());
-    while (idx !== -1) {
-      accounts.splice(idx, 1);
-      idx = accounts.findIndex((account) => !account.deref());
-    }
+    purgeAccounts();
   });
+}
+
+// TODO: this really needs to be smarter but I'm about to change a lot about accounts anyways
+setInterval(() => {
+  accounts.forEach(async account => {
+    const ref = account.deref();
+    if (ref?.network) {
+      const { sequence } = await Cosmos.getAccountInfo(ref.network, ref.address!);
+      ref.signal.value.sequence = sequence;
+    }
+    purgeAccounts();
+  })
+}, 5000);
+
+function purgeAccounts() {
+  let idx = accounts.findIndex((account) => !account.deref());
+  while (idx !== -1) {
+    accounts.splice(idx, 1);
+    idx = accounts.findIndex((account) => !account.deref());
+  }
 }
