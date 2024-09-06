@@ -1,4 +1,5 @@
 import * as signals from '@apophis-sdk/core/signals.js';
+import cx from 'classnames';
 import React from 'preact/compat';
 import CopyIcon from './icons/copy-icon.js';
 import LogoutIcon from './icons/logout-icon.js';
@@ -11,6 +12,9 @@ export interface AddressProps {
   trimSize?: number;
   prefix?: string;
   prefixLength?: number;
+  class?: string;
+  style?: React.CSSProperties;
+  noControls?: boolean;
   onCopy?(): void;
   onLogout?(): void;
 }
@@ -26,15 +30,20 @@ export function Address({
   trimSize = 6,
   prefix,
   prefixLength,
+  class: className,
+  style,
+  noControls,
   onCopy = () => { children && navigator.clipboard.writeText(children) },
 }: Readonly<AddressProps>) {
   return (
-    <span class="cryptome-address">
+    <span class={cx('cryptome-address', className)} style={style}>
       {trimAddress(children ?? placeholder, trimSize, getPrefixLength(prefix, prefixLength))}{' '}
-      <span class="cryptome-address-icons" style={{ display: 'inline-flex', flexDirection: 'row', gap: 4, alignItems: 'center' }}>
-        <CopyIcon onClick={onCopy} />
-        {extra}
-      </span>
+      {!noControls && (
+        <span class="cryptome-address-icons" style={{ display: 'inline-flex', flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+          <CopyIcon onClick={onCopy} />
+          {extra}
+        </span>
+      )}
     </span>
   )
 }

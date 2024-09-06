@@ -1,7 +1,7 @@
 import { getRest, getRpc, type Account, type NetworkConfig, type Signer } from '@apophis-sdk/core';
 import { Tx } from '@apophis-sdk/core/tx.js';
 import { toHex } from '@apophis-sdk/core/utils.js';
-import { BroadcastMode, type Window as KeplrWindow } from '@keplr-wallet/types';
+import { type Window as KeplrWindow } from '@keplr-wallet/types';
 import { signal } from '@preact/signals-core';
 import LOGO_DATA_URL from './logo';
 
@@ -36,7 +36,8 @@ export abstract class KeplrSignerBase implements Signer {
     if (!network) throw new Error('Unsigned transaction');
 
     try {
-      const hashbytes = await window.keplr!.sendTx(network.chainId, tx.bytes(), BroadcastMode.Async);
+      // note: enum not found in bundle, apparently, so screw it
+      const hashbytes = await window.keplr!.sendTx(network.chainId, tx.bytes(), 'sync' as any);
       const hash = toHex(hashbytes);
       tx.confirm(hash);
       return hash;
