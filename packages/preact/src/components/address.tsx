@@ -36,10 +36,10 @@ export function Address({
   onCopy = () => { children && navigator.clipboard.writeText(children) },
 }: Readonly<AddressProps>) {
   return (
-    <span class={cx('cryptome-address', className)} style={style}>
+    <span class={cx('apophis-address', className)} style={style}>
       {trimAddress(children ?? placeholder, trimSize, getPrefixLength(prefix, prefixLength))}{' '}
       {!noControls && (
-        <span class="cryptome-address-icons" style={{ display: 'inline-flex', flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+        <span class="apophis-address-icons" style={{ display: 'inline-flex', flexDirection: 'row', gap: 4, alignItems: 'center' }}>
           <CopyIcon onClick={onCopy} />
           {extra}
         </span>

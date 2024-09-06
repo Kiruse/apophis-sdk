@@ -6,7 +6,7 @@ const MODAL_ROOT = createModalRoot();
 
 export function WalletModal(props: Readonly<WalletSelectorProps>) {
   return (
-    <Modal class='cryptome-modal cryptome-wallet-modal'>
+    <Modal class='apophis-modal apophis-wallet-modal'>
       <WalletSelector {...props} />
     </Modal>
   );
@@ -16,7 +16,7 @@ function Modal({ children, ...props }: { children?: React.ReactNode, class?: str
   return React.createPortal(
     <div
       {...props}
-      class={cx('cryptome-modal', props.class)}
+      class={cx('apophis-modal', props.class)}
       style={{
         position: 'absolute',
         top: '50%',
@@ -35,7 +35,7 @@ function Modal({ children, ...props }: { children?: React.ReactNode, class?: str
 function createModalRoot(): HTMLDivElement {
   if (!globalThis.document) return undefined as any;
   const elem = document.createElement('div');
-  elem.classList.add('cryptome-wallet-modal-root');
+  elem.classList.add('apophis-wallet-modal-root');
   Object.assign(elem.style, {
     position: 'fixed',
     top: 0,

@@ -12,7 +12,7 @@ export default function IconBase({
   ...props
 }: Readonly<IconBaseProps>) {
   return (
-    <span {...props} class='cryptome-icon' style={{ cursor: props.onClick && 'pointer', ...props.style }}>
+    <span {...props} class='apophis-icon' style={{ cursor: props.onClick && 'pointer', ...props.style }}>
       {children}
     </span>
   );
@@ -20,7 +20,7 @@ export default function IconBase({
 
 if (globalThis.window) {
   window.document.head.appendChild(document.createElement('style')).textContent = `
-    .cryptome-icon svg {
+    .apophis-icon svg {
       display: inline-block;
       vertical-align: middle;
       height: 1.1em;

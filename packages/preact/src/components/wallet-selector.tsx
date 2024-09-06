@@ -25,13 +25,13 @@ export function WalletSelector({ networks, onSelect, ...props }: Readonly<Wallet
   return (
     <div
       {...props}
-      class={cx('cryptome-wallet-selector', props.class)}
+      class={cx('apophis-wallet-selector', props.class)}
     >
       {signers.map(signer => (
         <WalletSelector.Choice
           key={signer.type}
           disabled={!signer.available.value}
-          class='cryptome-wallet-choice'
+          class='apophis-wallet-choice'
           onClick={async () => {
             await signer.connect(networks);
             signals.signer.value = signer;
@@ -54,7 +54,7 @@ WalletSelector.Choice = function WalletChoice({ children, disabled, onClick, ...
       onClick={() => {
         if (!disabled) onClick?.();
       }}
-      class={cx('cryptome-wallet-choice', {disabled}, props.class)}
+      class={cx('apophis-wallet-choice', {disabled}, props.class)}
     >
       {children}
     </div>
