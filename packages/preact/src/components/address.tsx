@@ -49,7 +49,7 @@ export function Address({
 }
 
 export function UserAddress({
-  onLogout = () => { signals.account.value = undefined },
+  onLogout = () => { signals.signer.value = undefined },
   ...props
 }: Readonly<Omit<AddressProps, 'children'>>) {
   return <Address

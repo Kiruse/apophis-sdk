@@ -40,5 +40,5 @@ export function getRest(network: NetworkConfig): string | undefined {
 
 export function getWebSocketEndpoint(network: NetworkConfig): string | undefined {
   if (wss[network.name]) return wss[network.name];
-  throw new Error('No known default WebSocket endpoint for this network');
+  return `wss://rpc.cosmos.directory/${network.name}/websocket`;
 }

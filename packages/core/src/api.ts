@@ -4,18 +4,18 @@ import { restful } from '@kiruse/restful';
 import { detectCasing, recase } from '@kristiandupont/recase';
 import { sha256 } from '@noble/hashes/sha256';
 import { Fee, Tx as SdkTx, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
-import { Account } from './account.js';
 import { getRest, getWebSocketEndpoint } from './connection.js';
 import { Any } from './encoding/protobuf/any.js';
 import { PowerSocket } from './powersocket.js';
 import * as signals from './signals.js';
-import type { NetworkConfig } from './types.js';
-import { fromBase64, toBase64, toHex } from './utils.js';
+import type { NetworkConfig, SignData } from './types.js';
+import { fromBase64, fromSdkPublicKey, getAddress, toBase64, toHex } from './utils.js';
 import { TendermintQuery } from './query.js';
 import { Tx } from './tx.js';
-import type { BasicRestApi, BlockEvent, BlockEventRaw, TransactionEvent, TransactionEventRaw, WS } from './types.sdk.js';
+import type { BasicRestApi, BlockEvent, BlockEventRaw, CosmosEvent, TransactionEvent, TransactionEventRaw, WS } from './types.sdk.js';
 import { Coin } from 'cosmjs-types/cosmos/base/v1beta1/coin.js';
 import { BytesMarshalUnit } from './marshal.js';
+import { PublicKey } from './crypto/pubkey.js';
 
 type Unsub = () => void;
 
@@ -35,6 +35,8 @@ const { marshal, unmarshal } = extendDefaultMarshaller([
 export const Cosmos = new class {
   #apis = new Map<NetworkConfig, BasicRestApi>();
   #sockets = new Map<NetworkConfig, CosmosWebSocket>();
+  #signData = new Map<NetworkConfig, SignData[]>();
+  #signDataWatchers = new Map<NetworkConfig, Unsub>();
 
   /** Get a bound REST API. When undefined, gets the REST API for the current `defaultNetwork` signal
    * value. If that, too, is undefined, throws an error. Note that this associates the concrete
@@ -42,8 +44,8 @@ export const Cosmos = new class {
    * object instance.
    */
   rest(network?: NetworkConfig) {
-    network ??= signals.defaultNetwork.value;
-    if (!network) throw new Error('No network specified and no default network set');
+    network ??= signals.network.value;
+    if (!network) throw new Error('No network specified and no active network set');
     if (!this.#apis.get(network)) {
       this.#apis.set(network, restful.default<BasicRestApi>({
         baseUrl() {
@@ -59,8 +61,8 @@ export const Cosmos = new class {
   }
 
   ws(network?: NetworkConfig) {
-    network ??= signals.defaultNetwork.value;
-    if (!network) throw new Error('No network specified and no default network set');
+    network ??= signals.network.value;
+    if (!network) throw new Error('No network specified and no active network set');
     if (!this.#sockets.get(network)) {
       this.#sockets.set(network, new CosmosWebSocket(network).connect());
     }
@@ -69,6 +71,7 @@ export const Cosmos = new class {
 
   async getAccountInfo(network: NetworkConfig, address: string) {
     if (!network || !address) throw new Error('Account not bound to a network');
+    // TODO: this should handle 429s & retry automatically
     const { info } = await this.rest(network).cosmos.auth.v1beta1.account_info[address]('GET');
     return {
       accountNumber: info.account_number,
@@ -76,6 +79,71 @@ export const Cosmos = new class {
       publicKey: info.pub_key,
       sequence: info.sequence,
     };
+  }
+
+  async watchSignData(network: NetworkConfig, publicKey: PublicKey) {
+    if (!this.#signData.has(network)) this.#signData.set(network, []);
+    const signData = this.#signData.get(network)!;
+    const address = getAddress(network.addressPrefix, publicKey.key);
+    const existing = signData.find(s => s.address === address);
+    if (existing) return existing;
+
+    const { sequence, accountNumber } = await this.getAccountInfo(network, address);
+    const info: SignData = {
+      address,
+      publicKey,
+      sequence,
+      accountNumber,
+    };
+    signData.push(info);
+
+    this.#watchNetwork(network);
+    return info;
+  }
+
+  unwatchSignData(network: NetworkConfig, address: string) {
+    const signData = this.#signData.get(network)!;
+    const index = signData.findIndex(s => s.address === address);
+    if (index === -1) return;
+    signData.splice(index, 1);
+    if (signData.length === 0) {
+      this.#signDataWatchers.get(network)?.();
+      this.#signDataWatchers.delete(network);
+      this.#signData.delete(network);
+    }
+  }
+
+  #watchNetwork(network: NetworkConfig) {
+    // watch for blocks involving our addresses as signers
+    const unsub1 = this.ws(network).onBlock(async block => {
+      const addresses = this.#signData.get(network)!.map(s => s.address);
+      const txs = block.txs.map(tx => Cosmos.tryDecodeTx(tx)).filter(tx => typeof tx !== 'string');
+      console.log(txs.flatMap(tx => tx.authInfo!.signerInfos));
+
+      for (const address of addresses) {
+        const signerInfos = txs.flatMap(tx => tx.authInfo?.signerInfos).filter(info => !!info);
+        for (const signerInfo of signerInfos) {
+          const pubkey = fromSdkPublicKey(signerInfo.publicKey!);
+          if (getAddress(network.addressPrefix, pubkey.key) === address) {
+            const info = this.#signData.get(network)?.find(s => s.address === address);
+            if (info && info.sequence < signerInfo.sequence + 1n) info.sequence = signerInfo.sequence + 1n;
+          }
+        }
+      }
+    });
+    // upon reconnecting, update the sequence number for all accounts
+    const unsub2 = this.ws(network).socket.onReconnect(async () => {
+      const addresses = this.#signData.get(network)!.map(s => s.address);
+      for (const address of addresses) {
+        const { sequence } = await this.getAccountInfo(network, address);
+        const info = this.#signData.get(network)?.find(s => s.address === address);
+        if (info && info.sequence < sequence) info.sequence = sequence;
+      }
+    });
+    this.#signDataWatchers.set(network, () => {
+      unsub1();
+      unsub2();
+    });
   }
 
   cosmwasm(network?: NetworkConfig) {
@@ -124,6 +192,15 @@ export const Cosmos = new class {
 
     const buffer = sha256(bytes);
     return toHex(new Uint8Array(buffer));
+  }
+
+  /** Search a list of `CosmosEvent`s for a particular event/attribute. The result is a list of all
+   * matching values in the order of their occurrence.
+   */
+  getEventValues(events: CosmosEvent[], event: string, attribute: string) {
+    return events
+      .filter(e => e.type === event)
+      .flatMap(e => e.attributes.filter(attr => attr.key === attribute).map(attr => attr.value));
   }
 }
 
@@ -345,6 +422,13 @@ export class CosmosWebSocket {
     if (!ep) throw new Error(`No WebSocket endpoint set for the network: ${this.network.name}`);
     return ep;
   }
+}
+
+function getSignerInfo(network: NetworkConfig, tx: string | SdkTx, signer: string) {
+  if (typeof tx === 'string') tx = Cosmos.tryDecodeTx(tx);
+  if (typeof tx === 'string') return null;
+  const authInfo = tx.authInfo!;
+  return authInfo.signerInfos.find(info => getAddress(network.addressPrefix, fromSdkPublicKey(info.publicKey!).key) === signer) ?? undefined;
 }
 
 interface TxSubscriptionMetadata {

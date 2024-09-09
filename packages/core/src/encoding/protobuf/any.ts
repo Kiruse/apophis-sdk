@@ -9,6 +9,8 @@ export const AnyMarshalUnit = defineMarshalUnit(
   (value: any) => isMarshalledAny(value) ? morph({ typeUrl: value.typeUrl, value: fromBase64(value.value) }) : pass,
 );
 
+export type Anylike = Any | MarshalledAny;
+
 /** An `Any` type in protobuf. It is generally a type URL with a binary payload. */
 export type Any<T extends string = string> = {
   typeUrl: T;

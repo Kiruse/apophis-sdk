@@ -33,11 +33,13 @@ export function WalletSelector({ networks, onSelect, ...props }: Readonly<Wallet
           disabled={!signer.available.value}
           class='apophis-wallet-choice'
           onClick={async () => {
-            await signer.connect(networks);
-            signals.signer.value = signer;
-            signals.account.value = signer.account();
-            signals.account.value!.bind(networks[0]); // intentionally don't await
-            onSelect?.(signer);
+            try {
+              await signer.connect(networks);
+              signals.signer.value = signer;
+              onSelect?.(signer);
+            } catch (error) {
+              console.error('Failed to connect wallet:', error);
+            }
           }}
         >
           {signer.logoURL ? <img src={signer.logoURL.toString()} alt={signer.displayName} /> : signer.displayName}

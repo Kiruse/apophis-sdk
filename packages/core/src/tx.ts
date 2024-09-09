@@ -1,12 +1,12 @@
 import { Decimal } from '@kiruse/decimal';
 import { SignMode } from 'cosmjs-types/cosmos/tx/signing/v1beta1/signing';
 import { AuthInfo, Tx as SdkTx, SignDoc, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
-import { Account } from './account.js';
 import { Cosmos } from './api.js';
 import { config } from './constants.js';
 import { Any } from './encoding/protobuf/any.js';
 import type { Gas } from './types.sdk.js';
-import { NetworkConfig } from './types.js';
+import { NetworkConfig, Signer } from './types.js';
+import { sha256 } from '@noble/hashes/sha256';
 
 export type TxStatus = 'unsigned' | 'signed' | 'confirmed' | 'failed';
 
@@ -22,8 +22,9 @@ export class Tx {
   /** Typically, timeout height of 0 is synonymous with "no timeout". */
   timeoutHeight = 0n;
   #status: TxStatus = 'unsigned';
-  #account: Account | undefined;
+  #signer: Signer | undefined;
   #signature: Uint8Array | undefined;
+  #network: NetworkConfig | undefined;
   #hash: string | undefined;
   #error: string | undefined;
   gas: Gas | undefined;
@@ -36,9 +37,10 @@ export class Tx {
     this.timeoutHeight = opts?.timeoutHeight ?? 0n;
   }
 
-  setSignature(account: Account, signature: Uint8Array): this {
-    this.#account = account;
+  setSignature(network: NetworkConfig, signer: Signer, signature: Uint8Array): this {
+    this.#signer = signer;
     this.#signature = signature;
+    this.#network = network;
     return this;
   }
 
@@ -71,17 +73,14 @@ export class Tx {
   }
 
   /** Non-interface method to simulate this transaction. `estimateGas` extracts the `gas_info` from this method's result. */
-  simulate(account: Account) {
-    if (!account.network) throw new Error('Account not bound');
-    return Cosmos.rest(account.network).cosmos.tx.v1beta1.simulate('POST', {
-      tx_bytes: SdkTx.encode(this.sdkTx(account)).finish(),
+  simulate(network: NetworkConfig, signer: Signer) {
+    return Cosmos.rest(network).cosmos.tx.v1beta1.simulate('POST', {
+      tx_bytes: SdkTx.encode(this.sdkTx(network, signer)).finish(),
     });
   }
 
-  async estimateGas(account: Account, populate?: boolean): Promise<Gas> {
-    const { network } = account;
-    if (!network) throw new Error('Account not bound');
-    const { gas_info } = await this.simulate(account);
+  async estimateGas(network: NetworkConfig, signer: Signer, populate?: boolean): Promise<Gas> {
+    const { gas_info } = await this.simulate(network, signer);
     if (!gas_info) throw new Error('Failed to simulate transaction');
     const units = Decimal.parse(gas_info.gas_used).mul(Decimal.parse(network.gasFactor ?? config.gasFactor)).rebase(0);
     return this.computeGas(network, units.valueOf(), populate);
@@ -89,8 +88,8 @@ export class Tx {
 
   /** Convenience method to broadcast this transaction to the network. Calls the signer's `broadcast` method. */
   broadcast() {
-    if (!this.#account) throw new Error('Account not bound');
-    return this.#account.signer.broadcast(this);
+    if (!this.#signer) throw new Error('Signer not bound');
+    return this.#signer.broadcast(this);
   }
 
   /** The SignDoc is the 2nd step in the transaction process:
@@ -100,21 +99,20 @@ export class Tx {
    * 3. `.setSignature` to finalize the transaction document
    * 4. `.broadcast` to send the transaction to the network
    */
-  signDoc(account: Account): SignDoc {
-    if (!account.network) throw new Error('Account not bound');
+  signDoc(network: NetworkConfig, signer: Signer): SignDoc {
     if (!this.gas) throw new Error('Gas not set');
-    const sdktx = this.sdkTx(account);
+    const sdktx = this.sdkTx(network, signer);
     return SignDoc.fromPartial({
       bodyBytes: TxBody.encode(sdktx.body!).finish(),
       authInfoBytes: AuthInfo.encode(sdktx.authInfo!).finish(),
-      chainId: account.network.chainId,
-      accountNumber: account.accountNumber,
+      chainId: network.chainId,
+      accountNumber: signer.getSignData(network).accountNumber,
     });
   }
 
   /** Get a partial Cosmos SDK Tx object. This does not require gas or signature, in which case it can be used for simulation (including gas estimation). */
-  sdkTx(account: Account, signature = new Uint8Array()): SdkTx {
-    const { network, publicKey, sequence = 0n } = account;
+  sdkTx(network: NetworkConfig, signer: Signer, signature = new Uint8Array()): SdkTx {
+    const { publicKey, sequence = 0n } = signer.getSignData(network);
     if (!network || !publicKey || sequence === undefined) throw new Error('Account not bound');
     return SdkTx.fromPartial({
       body: {
@@ -142,9 +140,12 @@ export class Tx {
 
   fullSdkTx(): SdkTx {
     if (!this.gas) throw new Error('Gas not set');
-    if (!this.#account) throw new Error('Account not bound');
-    if (!this.#signature) throw new Error('Signature not set');
-    return this.sdkTx(this.#account, this.#signature);
+    if (!this.#signer || !this.#signature || !this.#network) throw new Error('Signature not bound');
+    return this.sdkTx(this.#network, this.#signer, this.#signature);
+  }
+
+  signBytes(network: NetworkConfig, signer: Signer): Uint8Array {
+    return sha256(SignDoc.encode(this.signDoc(network, signer)).finish());
   }
 
   bytes(): Uint8Array {
@@ -152,8 +153,8 @@ export class Tx {
   }
 
   get status(): TxStatus { return this.#status }
-  get account() { return this.#account }
-  get network() { return this.#account?.network }
+  get signer() { return this.#signer }
+  get network() { return this.#network }
   get signature(): Uint8Array | undefined { return this.#signature }
   get hash() { return this.#hash ?? Cosmos.getTxHash(this.fullSdkTx()) }
   get error() { return this.#error }
