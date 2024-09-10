@@ -57,9 +57,9 @@ render((
 ), document.getElementById('app')!);
 
 function handleClick() {
-  const account = signals.account.value;
-  if (!account) {
-    console.log('No account found');
+  const signer = signals.signer.value;
+  if (!signer) {
+    console.log('No signer chosen');
     return;
   }
 
@@ -70,9 +70,8 @@ function handleClick() {
       [Cosmos.coin(1n, 'untrn')]
     )),
   ]);
-  await tx.estimateGas(account, true);
-  await account.bind(network);
-  await account.sign(tx);
+  await tx.estimateGas(network, signals.signer.value!, true);
+  await signer.sign(network, tx);
   await tx.broadcast();
 }
 ```
