@@ -1,6 +1,6 @@
 import { sha256 } from '@noble/hashes/sha256';
 import * as secp256k1 from '@noble/secp256k1';
-import { signal } from '@preact/signals-core';
+import { Signal, signal } from '@preact/signals-core';
 import { describe, expect, test } from 'bun:test';
 import { SignMode } from 'cosmjs-types/cosmos/tx/signing/v1beta1/signing.js';
 import { Tx as SdkTx } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
@@ -32,11 +32,19 @@ const network: NetworkConfig = {
 class MockSigner implements Signer {
   readonly type = 'mock';
   readonly available = signal(true);
+  readonly signData = signal<SignData | undefined>();
   readonly displayName = 'Mock';
   readonly logoURL = undefined;
   #sequence = 0n;
 
-  constructor(private readonly privateKey: Uint8Array) {}
+  constructor(private readonly privateKey: Uint8Array) {
+    this.signData.value = {
+      publicKey: pubkey.secp256k1(secp256k1.getPublicKey(privateKey, true)),
+      address: getAddress(network.addressPrefix, secp256k1.getPublicKey(privateKey, true)),
+      accountNumber: 1n,
+      sequence: 0n,
+    };
+  }
 
   async probe() {
     return true;
@@ -45,7 +53,7 @@ class MockSigner implements Signer {
   async connect() {}
 
   async sign(network: NetworkConfig, tx: Tx) {
-    const bytes = sha256(tx.bytes(network, this));
+    const bytes = sha256(tx.signBytes(network, this));
     const signature = await secp256k1.signAsync(bytes, this.privateKey);
     tx.setSignature(network, this, signature.toCompactRawBytes());
     return tx;
@@ -115,11 +123,11 @@ describe('Tx', () => {
   test('fullSdkTx', async () => {
     const tx = new Tx();
     const signer = new MockSigner(secp256k1.utils.randomPrivateKey());
-    await signer.sign(network, tx);
     tx.gas = {
       amount: [Cosmos.coin(1, 'tntrn')],
       gasLimit: 200000n,
     };
+    await signer.sign(network, tx);
 
     expect(tx.fullSdkTx()).toEqual(SdkTx.fromPartial({
       body: {
