@@ -1,5 +1,5 @@
 import { computed, signal } from '@preact/signals-core';
-import { Cosmos, getRest, signals, SignData, type NetworkConfig, type Signer } from '@apophis-sdk/core';
+import { connections, Cosmos, signals, SignData, type NetworkConfig, type Signer } from '@apophis-sdk/core';
 import { Tx } from '@apophis-sdk/core/tx.js';
 import { BroadcastMode } from '@apophis-sdk/core/types.sdk.js';
 import { getAddress } from '@apophis-sdk/core/utils.js';
@@ -70,7 +70,7 @@ export const LocalSigner = new class implements Signer {
     const { network } = tx;
     if (!network) throw new Error('Unsigned transaction');
 
-    const url = getRest(network);
+    const url = connections.rest(network);
     if (!url) throw new Error('No REST endpoint available');
 
     const { tx_response: response } = await Cosmos.rest(network).cosmos.tx.v1beta1.txs('POST', { mode: BroadcastMode.BROADCAST_MODE_SYNC, tx_bytes: tx.bytes() });

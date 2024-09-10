@@ -1,44 +1,56 @@
+import { SyncEvent } from '@kiruse/typed-events';
 import { NetworkConfig } from './types';
 
-const rpcs: Record<string, string> = {};
-const rests: Record<string, string> = {};
-const wss: Record<string, string> = {};
-
-export function setRpc(network: NetworkConfig, rpc: string): void {
-  rpcs[network.name] = rpc;
+export interface Connection {
+  rpc?: string;
+  rest?: string;
+  ws?: string;
 }
 
-export function setRest(network: NetworkConfig, rpc: string): void {
-  rests[network.name] = rpc;
-}
+const store = new Map<NetworkConfig, Connection>();
 
-export function setWebSocketEndpoint(network: NetworkConfig, ws: string): void {
-  wss[network.name] = ws;
-}
+export const connections = new class {
+  readonly onCreate = SyncEvent<NetworkConfig, Connection>();
+  readonly onRead = SyncEvent<{ which: 'rpc' | 'rest' | 'ws', network: NetworkConfig, connection: Connection }, string>();
 
-export function clearRpc(network: NetworkConfig): void {
-  delete rpcs[network.name];
-}
+  get(network: NetworkConfig): Connection {
+    if (!store.has(network)) {
+      const event = this.onCreate.emit(network, {});
+      store.set(network, event.result!);
+    }
+    return store.get(network)!;
+  }
 
-export function clearRest(network: NetworkConfig): void {
-  delete rests[network.name];
-}
+  setRest(network: NetworkConfig, rest: string) {
+    this.get(network).rest = rest;
+    return this;
+  }
 
-export function clearWebSocketEndpoint(network: NetworkConfig): void {
-  delete wss[network.name];
-}
+  setRpc(network: NetworkConfig, rpc: string) {
+    this.get(network).rpc = rpc;
+    return this;
+  }
 
-export function getRpc(network: NetworkConfig): string | undefined {
-  if (rpcs[network.name]) return rpcs[network.name];
-  return `https://rpc.cosmos.directory/${network.name}`;
-}
+  setWs(network: NetworkConfig, ws: string) {
+    this.get(network).ws = ws;
+    return this;
+  }
 
-export function getRest(network: NetworkConfig): string | undefined {
-  if (rests[network.name]) return rests[network.name];
-  return `https://rest.cosmos.directory/${network.name}`;
-}
+  rest(network: NetworkConfig): string {
+    const base = this.get(network);
+    const event = this.onRead.emit({ which: 'rest', network, connection: base }, base.rest ?? `https://rest.cosmos.directory/${network.name}`);
+    return event.result!;
+  }
 
-export function getWebSocketEndpoint(network: NetworkConfig): string | undefined {
-  if (wss[network.name]) return wss[network.name];
-  return `wss://rpc.cosmos.directory/${network.name}/websocket`;
+  rpc(network: NetworkConfig): string {
+    const base = this.get(network);
+    const event = this.onRead.emit({ which: 'rpc', network, connection: base }, base.rpc ?? `https://rpc.cosmos.directory/${network.name}`);
+    return event.result!;
+  }
+
+  ws(network: NetworkConfig): string {
+    const base = this.get(network);
+    const event = this.onRead.emit({ which: 'ws', network, connection: base }, base.ws ?? `wss://rpc.cosmos.directory/${network.name}/websocket`);
+    return event.result!;
+  }
 }

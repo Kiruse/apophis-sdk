@@ -1,4 +1,4 @@
-import { Cosmos, getRest, getRpc, signals, SignData, type NetworkConfig, type Signer } from '@apophis-sdk/core';
+import { connections, Cosmos, signals, SignData, type NetworkConfig, type Signer } from '@apophis-sdk/core';
 import { pubkey } from '@apophis-sdk/core/crypto/pubkey.js';
 import { Tx } from '@apophis-sdk/core/tx.js';
 import { fromBase64, toHex } from '@apophis-sdk/core/utils.js';
@@ -178,8 +178,8 @@ function toChainSuggestion(network: NetworkConfig): Parameters<Required<KeplrWin
   return {
     chainId: network.chainId,
     chainName: network.prettyName,
-    rpc: getRpc(network)!,
-    rest: getRest(network)!,
+    rpc: connections.rpc(network)!,
+    rest: connections.rest(network)!,
     bip44: {
       coinType: network.slip44!,
     },

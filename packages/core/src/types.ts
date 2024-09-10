@@ -5,6 +5,13 @@ import { PublicKey } from './crypto/pubkey.js';
 
 export { NetworkConfig };
 
+export interface ApophisConfig {
+  /** Multiplier for the gas fee estimate to avoid under-estimation. Should generally be held low
+   * to avoid overspending as, unlike Ethereum chains, Cosmos chains do not refund unused gas.
+   */
+  gasFactor: number;
+}
+
 /** A signer represents a wallet or another provider that can sign transactions. Typically, a signer
  * has multiple accounts for different networks, sometimes even for the same network. A Signer
  * implementation should cache the SignData for each network and keep their sequence numbers up to date.

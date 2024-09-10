@@ -20,11 +20,14 @@ Further integrations are planned.
 
 # Usage
 ```typescript
-import { Any, type Asset, Cosmos, type NetworkConfig, signals } from '@apophis-sdk/core';
+import { Any, type Asset, Cosmos, type NetworkConfig, signers, signals } from '@apophis-sdk/core';
 import { SendMessage } from '@apophis-sdk/core/msg/bank';
+import { KeplrDirect } from '@apophis-sdk/keplr-signer';
 import { UserAddress, WalletModal } from '@apophis-sdk/preact';
 import { render } from 'preact';
-import '@apophis-sdk/keplr-signer';
+
+// signers are shown by `WalletSelector` and `WalletModal` components
+signers.push(KeplrDirect);
 
 const assets = {
   ntrn: {
@@ -79,9 +82,40 @@ function handleClick() {
 ## Networks & API Connections
 The Cosmos is multichain. Thus, Apophis SDK is designed to be multichain. When working with Apophis, you will typically define `NetworkConfig` objects and pass these objects around. In part, objects are used as keys in `Map`s and thus should not be constructed on-the-fly.
 
-`@apophis-sdk/core/connections.js` exposes various methods for retrieving endpoints for a given `NetworkConfig`. These include `getRPC`, `getREST` & `getWebSocketEndpoint` methods, as well as corresponding `set` methods.
+`@apophis-sdk/core/connections.js` exposes the `connections` object, which you can use to get & set RPC, REST & WebSocket endpoints for a given `NetworkConfig`. Default endpoints rely on [cosmos.directory](https://cosmos.directory).
 
-The default RPC & REST endpoints rely on the proxy provided by [cosmos.directory](https://cosmos.directory). For WebSockets, you will need to configure these manually.
+`connections` has two events, `onCreate` & `onRead`, which you can use to alter the behavior. For example:
+
+```typescript
+// override neutron-testnet with new default endpoints
+connections.onCreate((event, network) => {
+  if (network.name === 'neutron-testnet') {
+    // this is a `Connection` object
+    event.result!.rest ??= 'https://rest-falcron.pion-1.ntrn.tech';
+    event.result!.rpc ??= 'https://rpc-falcron.pion-1.ntrn.tech';
+    event.result!.ws ??= 'wss://ws-falcron.pion-1.ntrn.tech/websocket';
+  }
+});
+
+const localNetworks = ['neutron', 'neutron-testnet', 'cosmoshub', 'cosmoshub-testnet'];
+
+connections.onRead((event, { which, network, config }) => {
+  // override locally hosted networks with localhost
+  if (localNetworks.includes(network.name)) {
+    switch (which) {
+      case 'rest':
+        event.result = 'http://localhost:1337';
+        break;
+      case 'rpc':
+        event.result = 'http://localhost:26657';
+        break;
+      case 'ws':
+        event.result = 'ws://localhost:26657/websocket';
+        break;
+    }
+  }
+});
+```
 
 # License
 Apophis SDK is licensed under **LGPL-3.0**.

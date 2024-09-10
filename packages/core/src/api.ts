@@ -4,7 +4,7 @@ import { restful } from '@kiruse/restful';
 import { detectCasing, recase } from '@kristiandupont/recase';
 import { sha256 } from '@noble/hashes/sha256';
 import { Fee, Tx as SdkTx, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
-import { getRest, getWebSocketEndpoint } from './connection.js';
+import { connections } from './connection.js';
 import { Any } from './encoding/protobuf/any.js';
 import { PowerSocket } from './powersocket.js';
 import * as signals from './signals.js';
@@ -49,7 +49,7 @@ export const Cosmos = new class {
     if (!this.#apis.get(network)) {
       this.#apis.set(network, restful.default<BasicRestApi>({
         baseUrl() {
-          const url = getRest(network);
+          const url = connections.rest(network);
           if (!url) throw new Error(`No REST API URL set for the network: ${network.name}`);
           return url;
         },
@@ -418,17 +418,10 @@ export class CosmosWebSocket {
   }
 
   get endpoint() {
-    const ep = getWebSocketEndpoint(this.network);
+    const ep = connections.ws(this.network);
     if (!ep) throw new Error(`No WebSocket endpoint set for the network: ${this.network.name}`);
     return ep;
   }
-}
-
-function getSignerInfo(network: NetworkConfig, tx: string | SdkTx, signer: string) {
-  if (typeof tx === 'string') tx = Cosmos.tryDecodeTx(tx);
-  if (typeof tx === 'string') return null;
-  const authInfo = tx.authInfo!;
-  return authInfo.signerInfos.find(info => getAddress(network.addressPrefix, fromSdkPublicKey(info.publicKey!).key) === signer) ?? undefined;
 }
 
 interface TxSubscriptionMetadata {

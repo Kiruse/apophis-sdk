@@ -1,7 +1,7 @@
 import { signers } from '@apophis-sdk/core';
 import { KeplrDirect } from './signer.js';
 
-const Keplr = {
+export const Keplr = {
   Direct: KeplrDirect,
 } as const;
 
