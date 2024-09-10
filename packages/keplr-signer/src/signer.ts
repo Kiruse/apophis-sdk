@@ -1,10 +1,12 @@
 import { Cosmos, getRest, getRpc, signals, SignData, type NetworkConfig, type Signer } from '@apophis-sdk/core';
+import { pubkey } from '@apophis-sdk/core/crypto/pubkey.js';
 import { Tx } from '@apophis-sdk/core/tx.js';
-import { toHex } from '@apophis-sdk/core/utils.js';
+import { fromBase64, toHex } from '@apophis-sdk/core/utils.js';
 import { type Window as KeplrWindow } from '@keplr-wallet/types';
 import { signal } from '@preact/signals-core';
+import { AuthInfo, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
+import Long from 'long';
 import LOGO_DATA_URL from './logo';
-import { pubkey } from '@apophis-sdk/core/crypto/pubkey.js';
 
 declare global {
   interface Window {
@@ -33,10 +35,12 @@ export abstract class KeplrSignerBase implements Signer {
 
   async connect(networks: NetworkConfig[]) {
     if (!window.keplr) throw new Error('Keplr not available');
+    if (!networks.length) throw new Error('No networks provided');
     await Promise.all(networks.map((network) => window.keplr?.experimentalSuggestChain(toChainSuggestion(network))));
     await window.keplr.enable(networks.map((network) => network.chainId));
 
     await this.loadSignData(networks);
+    this.signData.value = this.getSignData(signals.network.value ?? networks[0]);
 
     for (const network of networks) {
       if (!this.#signData.has(network)) {
@@ -84,9 +88,7 @@ export abstract class KeplrSignerBase implements Signer {
   }
 
   address(network: NetworkConfig): string {
-    const data = this.#signData.get(network);
-    if (!data) throw new Error('Account not found');
-    return data.address;
+    return this.getSignData(network).address;
   }
 
   /** Load `SignData` for the given networks. This is intended for internal use only and will be
@@ -95,9 +97,10 @@ export abstract class KeplrSignerBase implements Signer {
   async loadSignData(networks?: NetworkConfig[]) {
     networks ??= Array.from(this.#signData.keys());
 
-    for (const network of networks) {
+    await Promise.all(networks.map(async network => {
       const offlineSigner = window.keplr!.getOfflineSigner(network.chainId);
       const accounts = await offlineSigner.getAccounts();
+
       await Promise.all(accounts.map(async account => {
         const { algo, address, pubkey: publicKey } = account;
         if (algo !== 'secp256k1' && algo !== 'ed25519') throw new Error('Unsupported algorithm');
@@ -113,7 +116,61 @@ export abstract class KeplrSignerBase implements Signer {
           accountNumber,
         });
       }));
-    }
+    }));
+  }
+
+  isConnected(network: NetworkConfig): boolean {
+    return this.#signData.has(network);
+  }
+}
+
+/** Keplr Direct Signer.
+ *
+ * In Cosmos, there are currently two data formats for transactions: Amino and Protobuf aka Direct.
+ * Amino is the legacy format and is being phased out in favor of Protobuf. It is still highly
+ * relevant as the Cosmos Ledger Micro-App currently only supports Amino. It is also the reason why
+ * many modern Dapps leveraging modern Cosmos SDK modules which do not support Amino are incompatible
+ * with Ledger.
+ *
+ * When detecting, you need to check only one of `await KeplrDirect.probe()` or `await KeplrAmino.probe()`
+ * as they abstract the same interface.
+ */
+export const KeplrDirect = new class extends KeplrSignerBase {
+  readonly type = 'Keplr.Direct';
+
+  async sign(network: NetworkConfig, tx: Tx): Promise<Tx> {
+    const { address, publicKey } = this.getSignData(network);
+    if (!window.keplr) throw new Error('Keplr not available');
+    if (!address || !publicKey || !network) throw new Error('Account not bound to a network');
+
+    const signer = await window.keplr.getOfflineSigner(network.chainId);
+    const signDoc = tx.signDoc(network, this);
+    const keplrSignDoc = {
+      ...signDoc,
+      accountNumber: Long.fromValue(signDoc.accountNumber.toString()),
+    };
+
+    const {
+      signed,
+      signature: { signature },
+    } = await signer.signDirect(address, keplrSignDoc);
+
+    const body = TxBody.decode(signed.bodyBytes);
+    tx.memo = body.memo;
+    tx.extensionOptions = body.extensionOptions;
+    tx.nonCriticalExtensionOptions = body.nonCriticalExtensionOptions;
+    tx.timeoutHeight = body.timeoutHeight;
+
+    const authInfo = AuthInfo.decode(signed.authInfoBytes);
+    tx.gas = {
+      amount: authInfo.fee!.amount,
+      gasLimit: authInfo.fee!.gasLimit,
+      granter: authInfo.fee!.granter,
+      payer: authInfo.fee!.payer,
+    };
+
+    tx.setSignature(network, this, fromBase64(signature));
+    return tx;
   }
 }
 
@@ -164,7 +221,11 @@ signals.network.subscribe(network => {
   for (const ref of signers) {
     const signer = ref.deref();
     if (!signer) continue;
-    signer.signData.value = network && signer.getSignData(network);
+    if (!network || !signer.isConnected(network)) {
+      signer.signData.value = undefined;
+    } else {
+      signer.signData.value = signer.getSignData(network);
+    }
   }
   purgeRefs();
 });

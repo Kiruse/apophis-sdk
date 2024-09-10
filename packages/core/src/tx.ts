@@ -112,8 +112,8 @@ export class Tx {
 
   /** Get a partial Cosmos SDK Tx object. This does not require gas or signature, in which case it can be used for simulation (including gas estimation). */
   sdkTx(network: NetworkConfig, signer: Signer, signature = new Uint8Array()): SdkTx {
-    const { publicKey, sequence = 0n } = signer.getSignData(network);
-    if (!network || !publicKey || sequence === undefined) throw new Error('Account not bound');
+    const { publicKey, sequence } = signer.getSignData(network);
+    if (!network || !publicKey) throw new Error('Account not bound');
     return SdkTx.fromPartial({
       body: {
         messages: this.messages.map(msg => Any.encode(network, msg)),

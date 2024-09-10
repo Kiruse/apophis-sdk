@@ -1,14 +1,11 @@
 import { signers } from '@apophis-sdk/core';
-import { KeplrDirect } from './signer.direct';
-// import { KeplrAmino } from './signer.amino';
+import { KeplrDirect } from './signer.js';
 
 const Keplr = {
   Direct: KeplrDirect,
-  // Amino: KeplrAmino,
 } as const;
 
 export default Keplr;
 export { KeplrDirect };
 
 signers.push(Keplr.Direct);
-// signers.push(Keplr.Amino);

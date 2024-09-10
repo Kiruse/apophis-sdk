@@ -4,7 +4,7 @@ import type { NetworkConfig, Signer } from './types';
 /** The logged-in signer, if any. */
 export const signer = signal<Signer>();
 
-/** The current account data, for comprehensive updates to account changes. */
+/** The current signing data. Updated when either the signer, the signer's active keystore, or the selected network changes. */
 export const signdata = computed(() => signer.value?.signData.value);
 
 /** The currently selected network, if any. */
