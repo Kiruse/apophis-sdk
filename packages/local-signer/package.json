@@ -1,6 +1,6 @@
 {
   "name": "@apophis-sdk/local-signer",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "author": "Kiruse",
   "repository": "https://github.com/kiruse/apophis-sdk.git",
   "type": "module",
@@ -14,7 +14,8 @@
   },
   "scripts": {
     "clean": "tsc --build --clean",
-    "build": "rm -rf dist && npx tsc"
+    "build": "rm -rf dist && npx tsc -p tsconfig.build.json",
+    "test": "bun test"
   },
   "dependencies": {
     "@noble/hashes": "^1.4.0",
@@ -24,11 +25,12 @@
     "bech32": "^2.0.0"
   },
   "peerDependencies": {
-    "@apophis-sdk/core": "0.0.3",
+    "@apophis-sdk/core": "0.0.4",
     "typescript": "^5.0.0"
   },
   "devDependencies": {
-    "@types/node": "^22.3.0"
+    "@types/node": "^22.3.0",
+    "bun-types": "^1.1.27"
   },
   "files": [
     "dist",

@@ -2,15 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { fromHex } from '../utils.js';
 import { pubkey } from './pubkey.js';
 import { Any } from '../encoding/protobuf/any.js';
-import { NetworkConfig } from '../types.js';
-
-const network: NetworkConfig = {
-  chainId: '',
-  prettyName: '',
-  name: '',
-  feeDenoms: [],
-  gasPrice: 0,
-};
+import { network } from 'src/test-helpers.js';
 
 // both secp256k1 & ed25519 pubkeys are 40 bytes + varint32 length prefix
 // here, the prefix is 0x0A20, tho I'm not entirely sure why (20 from number of bytes, 0A from varint32 type??)

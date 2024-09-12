@@ -8,7 +8,7 @@ import { Cosmos } from './api.js';
 import { pubkey } from './crypto/pubkey.js';
 import { Tx } from './tx.js';
 import type { NetworkConfig, Signer, SignData } from './types.js';
-import { getAddress } from './utils.js';
+import { getAddress } from './address.js';
 import { type Asset } from './networks.js';
 import { Any } from './encoding/protobuf/any.js';
 
@@ -40,7 +40,7 @@ class MockSigner implements Signer {
   constructor(private readonly privateKey: Uint8Array) {
     this.signData.value = {
       publicKey: pubkey.secp256k1(secp256k1.getPublicKey(privateKey, true)),
-      address: getAddress(network.addressPrefix, secp256k1.getPublicKey(privateKey, true)),
+      address: getAddress(network, secp256k1.getPublicKey(privateKey, true)),
       accountNumber: 1n,
       sequence: 0n,
     };
@@ -68,12 +68,12 @@ class MockSigner implements Signer {
   }
 
   address(network: NetworkConfig): string {
-    return getAddress(network.addressPrefix, secp256k1.getPublicKey(this.privateKey, true));
+    return getAddress(network, secp256k1.getPublicKey(this.privateKey, true));
   }
 
   getSignData(network: NetworkConfig): SignData {
     const pub = secp256k1.getPublicKey(this.privateKey, true);
-    const address = getAddress(network.addressPrefix, pub);
+    const address = getAddress(network, pub);
 
     return {
       accountNumber: 1n,

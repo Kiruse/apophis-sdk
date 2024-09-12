@@ -2,21 +2,25 @@ import { computed, signal } from '@preact/signals-core';
 import { connections, Cosmos, signals, SignData, type NetworkConfig, type Signer } from '@apophis-sdk/core';
 import { Tx } from '@apophis-sdk/core/tx.js';
 import { BroadcastMode } from '@apophis-sdk/core/types.sdk.js';
-import { getAddress } from '@apophis-sdk/core/utils.js';
-import { pubkey } from '@apophis-sdk/core/crypto/pubkey.js';
+import { addresses } from '@apophis-sdk/core/address.js';
+import { pubkey, PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
 import * as bip32 from '@scure/bip32';
 import * as bip39 from '@scure/bip39';
 import { wordlist as _wordlist } from '@scure/bip39/wordlists/english';
 import * as secp256k1 from '@noble/secp256k1';
 import { hmac } from '@noble/hashes/hmac';
 import { sha256 } from '@noble/hashes/sha256';
+import './mw/injective.js';
+import { sha512 } from '@noble/hashes/sha512';
 
 secp256k1.etc.hmacSha256Sync = (k, ...m) => hmac(sha256, k, secp256k1.etc.concatBytes(...m));
 
-export const LocalSigner = new class implements Signer {
+export class LocalSigner implements Signer {
+  static readonly instance = new LocalSigner();
+
   #networks: NetworkConfig[] = [];
   #privateKey: Uint8Array | undefined;
-  #mnemonic: string | undefined;
+  #seed: Uint8Array | undefined;
   #signData = new Map<NetworkConfig, SignData>();
   readonly type = 'local';
   readonly available = signal(false);
@@ -30,10 +34,9 @@ export const LocalSigner = new class implements Signer {
     return this;
   }
 
-  setMnemonic(mnemonic: string, wordlist = _wordlist) {
-    mnemonic = mnemonic.trim();
-    if (!bip39.validateMnemonic(mnemonic, wordlist)) throw new Error('Invalid mnemonic');
-    this.#mnemonic = mnemonic;
+  setSeed(seed: Uint8Array) {
+    if (seed.length !== 64) throw new Error('Invalid seed length');
+    this.#seed = seed;
     return this;
   }
 
@@ -46,7 +49,7 @@ export const LocalSigner = new class implements Signer {
 
     await Promise.all(networks.map(async network => {
       const priv = this.#getPrivateKey(network);
-      const pub = pubkey.secp256k1(secp256k1.getPublicKey(priv, true));
+      let pub = pubkey.secp256k1(secp256k1.getPublicKey(priv, true));
       const signData = await Cosmos.watchSignData(network, pub);
       this.#signData.set(network, signData);
     }));
@@ -87,7 +90,7 @@ export const LocalSigner = new class implements Signer {
   }
 
   address(network: NetworkConfig): string {
-    return getAddress(network.addressPrefix, this.getSignData(network).publicKey.key);
+    return addresses.compute(network, this.getSignData(network).publicKey);
   }
 
   getSignData(network: NetworkConfig): SignData {
@@ -96,9 +99,8 @@ export const LocalSigner = new class implements Signer {
 
   #getPrivateKey(network: NetworkConfig, accountIndex = 0, addressIndex = 0) {
     if (this.#privateKey) return this.#privateKey;
-    if (!this.#mnemonic) throw new Error('No private key or mnemonic set');
-    const seed = bip39.mnemonicToSeedSync(this.#mnemonic);
-    const key = bip32.HDKey.fromMasterSeed(seed).derive(`m/44'/${network.slip44 ?? 118}'/${accountIndex}'/0/${addressIndex}`);
+    if (!this.#seed) throw new Error('No private key or mnemonic/seed set');
+    const key = bip32.HDKey.fromMasterSeed(this.#seed).derive(`m/44'/${network.slip44 ?? 118}'/${accountIndex}'/0/${addressIndex}`);
     if (!key.privateKey) throw new Error('Failed to derive private key');
     return key.privateKey;
   }
@@ -109,5 +111,15 @@ export const LocalSigner = new class implements Signer {
 
   static generatePrivateKey() {
     return crypto.getRandomValues(new Uint8Array(32));
+  }
+
+  static async fromMnemonic(mnemonic: string, passphrase?: string, wordlist = _wordlist) {
+    if (!bip39.validateMnemonic(mnemonic, wordlist)) throw new Error('Invalid mnemonic');
+    const seed = await bip39.mnemonicToSeed(mnemonic, passphrase);
+    return new LocalSigner().setSeed(seed);
+  }
+
+  static fromPrivateKey(privateKey: Uint8Array) {
+    return new LocalSigner().setPrivateKey(privateKey);
   }
 }

@@ -5,7 +5,7 @@ import { createMarshaller, defineMarshalUnit, extendMarshaller, morph, pass } fr
 import { fromUtf8, toBase64, toUtf8 } from '../../utils.js';
 import { AnyTypeUrlSymbol } from '../../constants.js';
 import { fromAnyable, isAnyable, isMarshalledAny, toAnyable } from '../../helpers.js';
-import { NetworkConfig } from '../../types.js';
+import { network } from 'src/test-helpers.js';
 
 describe('Any', () => {
   test('Un/marshal', () => {
@@ -77,14 +77,6 @@ describe('Any', () => {
       [AnyTypeUrlSymbol]: '/test',
       id: 123n,
       text: 'foobar',
-    };
-
-    const network: NetworkConfig = {
-      chainId: '',
-      prettyName: '',
-      name: '',
-      feeDenoms: [],
-      gasPrice: 0
     };
 
     const unit = defineMarshalUnit(

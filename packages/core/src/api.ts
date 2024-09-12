@@ -1,21 +1,22 @@
-import { Event } from '@kiruse/typed-events';
 import { extendDefaultMarshaller, RecaseMarshalUnit } from '@kiruse/marshal';
 import { restful } from '@kiruse/restful';
+import { Event } from '@kiruse/typed-events';
 import { detectCasing, recase } from '@kristiandupont/recase';
 import { sha256 } from '@noble/hashes/sha256';
+import { Coin } from 'cosmjs-types/cosmos/base/v1beta1/coin.js';
 import { Fee, Tx as SdkTx, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
+import { addresses } from './address.js';
 import { connections } from './connection.js';
+import { PublicKey } from './crypto/pubkey.js';
 import { Any } from './encoding/protobuf/any.js';
+import { BytesMarshalUnit } from './marshal.js';
 import { PowerSocket } from './powersocket.js';
+import { TendermintQuery } from './query.js';
 import * as signals from './signals.js';
 import type { NetworkConfig, SignData } from './types.js';
-import { fromBase64, fromSdkPublicKey, getAddress, toBase64, toHex } from './utils.js';
-import { TendermintQuery } from './query.js';
-import { Tx } from './tx.js';
 import type { BasicRestApi, BlockEvent, BlockEventRaw, CosmosEvent, TransactionEvent, TransactionEventRaw, WS } from './types.sdk.js';
-import { Coin } from 'cosmjs-types/cosmos/base/v1beta1/coin.js';
-import { BytesMarshalUnit } from './marshal.js';
-import { PublicKey } from './crypto/pubkey.js';
+import { Tx } from './tx.js';
+import { fromBase64, fromSdkPublicKey, toBase64, toHex } from './utils.js';
 
 type Unsub = () => void;
 
@@ -84,11 +85,11 @@ export const Cosmos = new class {
   async watchSignData(network: NetworkConfig, publicKey: PublicKey) {
     if (!this.#signData.has(network)) this.#signData.set(network, []);
     const signData = this.#signData.get(network)!;
-    const address = getAddress(network.addressPrefix, publicKey.key);
+    const address = addresses.compute(network, publicKey);
     const existing = signData.find(s => s.address === address);
     if (existing) return existing;
 
-    const { sequence, accountNumber } = await this.getAccountInfo(network, address);
+    const { sequence, accountNumber } = await this.getAccountInfo(network, address).catch(() => ({ sequence: 0n, accountNumber: 0n }));
     const info: SignData = {
       address,
       publicKey,
@@ -116,15 +117,14 @@ export const Cosmos = new class {
   #watchNetwork(network: NetworkConfig) {
     // watch for blocks involving our addresses as signers
     const unsub1 = this.ws(network).onBlock(async block => {
-      const addresses = this.#signData.get(network)!.map(s => s.address);
+      const addrs = this.#signData.get(network)!.map(s => s.address);
       const txs = block.txs.map(tx => Cosmos.tryDecodeTx(tx)).filter(tx => typeof tx !== 'string');
-      console.log(txs.flatMap(tx => tx.authInfo!.signerInfos));
 
-      for (const address of addresses) {
+      for (const address of addrs) {
         const signerInfos = txs.flatMap(tx => tx.authInfo?.signerInfos).filter(info => !!info);
         for (const signerInfo of signerInfos) {
           const pubkey = fromSdkPublicKey(signerInfo.publicKey!);
-          if (getAddress(network.addressPrefix, pubkey.key) === address) {
+          if (addresses.compute(network, pubkey) === address) {
             const info = this.#signData.get(network)?.find(s => s.address === address);
             if (info && info.sequence < signerInfo.sequence + 1n) info.sequence = signerInfo.sequence + 1n;
           }
@@ -133,11 +133,11 @@ export const Cosmos = new class {
     });
     // upon reconnecting, update the sequence number for all accounts
     const unsub2 = this.ws(network).socket.onReconnect(async () => {
-      const addresses = this.#signData.get(network)!.map(s => s.address);
-      for (const address of addresses) {
-        const { sequence } = await this.getAccountInfo(network, address);
-        const info = this.#signData.get(network)?.find(s => s.address === address);
+      const infos = this.#signData.get(network)!;
+      for (const info of infos) {
+        const { sequence, accountNumber } = await this.getAccountInfo(network, info.address).catch(() => ({ sequence: 0n, accountNumber: 0n }));
         if (info && info.sequence < sequence) info.sequence = sequence;
+        if (info && info.accountNumber === 0n) info.accountNumber = accountNumber;
       }
     });
     this.#signDataWatchers.set(network, () => {

@@ -1,7 +1,4 @@
-import { ripemd160 } from '@noble/hashes/ripemd160';
-import { sha256 } from '@noble/hashes/sha256';
 import { Signal } from '@preact/signals-core';
-import { bech32 } from 'bech32';
 import { PubKey as SdkEd25519PublicKey } from 'cosmjs-types/cosmos/crypto/ed25519/keys';
 import { PubKey as SdkSecp256k1PublicKey } from 'cosmjs-types/cosmos/crypto/secp256k1/keys';
 import { pubkey, PublicKey } from './crypto/pubkey';
@@ -36,11 +33,6 @@ export function toUtf8(bytes: Uint8Array): string {
 
 export const getFirstSignal = <T>(signals: (Signal<T | undefined | null> | undefined | null)[]): T | undefined =>
   signals.find(signal => signal?.value)?.value ?? undefined;
-
-export function getAddress(prefix: string, pubkey: Uint8Array): string {
-  if (pubkey.length !== 33) throw new Error('Invalid pubkey length');
-  return bech32.encode(prefix, bech32.toWords(ripemd160(sha256(pubkey)).slice(0, 20)));
-}
 
 export function fromSdkPublicKey(publicKey: Anylike): PublicKey {
   let { typeUrl, value } = publicKey;

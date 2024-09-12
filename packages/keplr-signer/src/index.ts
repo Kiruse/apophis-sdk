@@ -1,4 +1,3 @@
-import { signers } from '@apophis-sdk/core';
 import { KeplrDirect } from './signer.js';
 
 export const Keplr = {
@@ -7,5 +6,3 @@ export const Keplr = {
 
 export default Keplr;
 export { KeplrDirect };
-
-signers.push(Keplr.Direct);

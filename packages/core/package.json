@@ -1,6 +1,6 @@
 {
   "name": "@apophis-sdk/core",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "author": "Kiruse",
   "repository": "https://github.com/kiruse/apophis-sdk.git",
   "type": "module",
@@ -30,6 +30,7 @@
     "tslib": "^2.6.3"
   },
   "devDependencies": {
+    "@noble/secp256k1": "^2.1.0",
     "bun-types": "^1.1.26"
   },
   "peerDependencies": {

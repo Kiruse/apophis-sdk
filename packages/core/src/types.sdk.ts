@@ -5,7 +5,7 @@ import { BroadcastMode } from 'cosmjs-types/cosmos/tx/v1beta1/service.js';
 import type { Tx as CosmosTransaction } from 'cosmjs-types/cosmos/tx/v1beta1/tx.js';
 import type { Protobuf } from './encoding';
 
-export { BroadcastMode, CosmosTransaction };
+export { BroadcastMode, Coin, CosmosTransaction };
 
 export interface Block {
   header: BlockHeader;
