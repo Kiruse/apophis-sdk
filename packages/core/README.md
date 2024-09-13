@@ -92,4 +92,4 @@ function handleClick() {
 ## Caveats
 - Indicated by its version, *Apophis* is currently in a very early stage and the exposed API may change significantly.
 - Not all chains are currently supported. Particularly, chains that extensively modify the baseline Cosmos SDK types such as Injective.
-- *Apophis* SDK currently only supports so-called Direct Signing, meaning it currently does not support Amino Signing which is required for Keplr. Amino signing is considered deprecated, and thus does not enjoy my high priority.
+- *Apophis* SDK currently only supports so-called Direct Signing, meaning it currently does not support Amino Signing which is required for Ledger. Amino signing is considered deprecated, and thus does not enjoy my high priority.
