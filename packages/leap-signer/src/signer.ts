@@ -2,22 +2,22 @@ import { connections, Cosmos, signals, SignData, type NetworkConfig, type Signer
 import { pubkey } from '@apophis-sdk/core/crypto/pubkey.js';
 import { Tx } from '@apophis-sdk/core/tx.js';
 import { fromBase64, toHex } from '@apophis-sdk/core/utils.js';
-import { type Window as KeplrWindow } from '@keplr-wallet/types';
 import { signal } from '@preact/signals-core';
 import { AuthInfo, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import Long from 'long';
 import LOGO_DATA_URL from './logo';
 
+// leap's types library is broken & I cba to monkeypatch it
 declare global {
   interface Window {
-    keplr: KeplrWindow['keplr'];
+    leap?: any;
   }
 }
 
-const signers: Array<WeakRef<KeplrSignerBase>> = [];
+const signers: Array<WeakRef<LeapSignerBase>> = [];
 
-export abstract class KeplrSignerBase implements Signer {
-  readonly available = signal(isAvailable());
+export abstract class LeapSignerBase implements Signer {
+  readonly available = signal(!!window.leap);
   readonly signData = signal<SignData | undefined>();
   #signData = new Map<NetworkConfig, SignData>();
 
@@ -26,18 +26,18 @@ export abstract class KeplrSignerBase implements Signer {
   }
 
   abstract get type(): string;
-  get displayName() { return 'Keplr' }
+  get displayName() { return 'Leap' }
   get logoURL() { return LOGO_DATA_URL }
 
   probe(): Promise<boolean> {
-    return Promise.resolve(this.available.value = isAvailable());
+    return Promise.resolve(this.available.value = !!window.leap);
   }
 
   async connect(networks: NetworkConfig[]) {
-    if (!window.keplr) throw new Error('Keplr not available');
+    if (!window.leap) throw new Error('Keplr not available');
     if (!networks.length) throw new Error('No networks provided');
-    await Promise.all(networks.map((network) => window.keplr?.experimentalSuggestChain(toChainSuggestion(network))));
-    await window.keplr.enable(networks.map((network) => network.chainId));
+    await Promise.all(networks.map((network) => window.leap?.experimentalSuggestChain(toChainSuggestion(network))));
+    await window.leap.enable(networks.map((network) => network.chainId));
 
     await this.loadSignData(networks);
     this.signData.value = this.getSignData(signals.network.value ?? networks[0]);
@@ -65,8 +65,7 @@ export abstract class KeplrSignerBase implements Signer {
     if (!network) throw new Error('Unsigned transaction');
 
     try {
-      // note: enum not found in bundle, apparently, so screw it
-      const hashbytes = await window.keplr!.sendTx(network.chainId, tx.bytes(), 'sync' as any);
+      const hashbytes = await window.leap!.sendTx(network.chainId, tx.bytes(), 'sync' as any);
       const hash = toHex(hashbytes);
       tx.confirm(hash);
       return hash;
@@ -98,10 +97,10 @@ export abstract class KeplrSignerBase implements Signer {
     networks ??= Array.from(this.#signData.keys());
 
     await Promise.all(networks.map(async network => {
-      const offlineSigner = window.keplr!.getOfflineSigner(network.chainId);
+      const offlineSigner = window.leap!.getOfflineSigner(network.chainId, {});
       const accounts = await offlineSigner.getAccounts();
 
-      await Promise.all(accounts.map(async account => {
+      await Promise.all(accounts.map(async (account: any) => {
         const { algo, address, pubkey: publicKey } = account;
         if (algo !== 'secp256k1' && algo !== 'ed25519') throw new Error('Unsupported algorithm');
 
@@ -135,15 +134,15 @@ export abstract class KeplrSignerBase implements Signer {
  * When detecting, you need to check only one of `await KeplrDirect.probe()` or `await KeplrAmino.probe()`
  * as they abstract the same interface.
  */
-export const KeplrDirect = new class extends KeplrSignerBase {
+export const LeapDirect = new class extends LeapSignerBase {
   readonly type = 'Keplr.Direct';
 
   async sign(network: NetworkConfig, tx: Tx): Promise<Tx> {
     const { address, publicKey } = this.getSignData(network);
-    if (!window.keplr) throw new Error('Keplr not available');
+    if (!window.leap) throw new Error('Keplr not available');
     if (!address || !publicKey || !network) throw new Error('Account not bound to a network');
 
-    const signer = await window.keplr.getOfflineSigner(network.chainId);
+    const signer = await window.leap.getOfflineSigner(network.chainId, {});
     const signDoc = tx.signDoc(network, this);
     const keplrSignDoc = {
       ...signDoc,
@@ -174,7 +173,7 @@ export const KeplrDirect = new class extends KeplrSignerBase {
   }
 }
 
-function toChainSuggestion(network: NetworkConfig): Parameters<Required<KeplrWindow>['keplr']['experimentalSuggestChain']>[0] {
+function toChainSuggestion(network: NetworkConfig): Parameters<Required<Window>['leap']['experimentalSuggestChain']>[0] {
   return {
     chainId: network.chainId,
     chainName: network.prettyName,
@@ -248,8 +247,4 @@ function purgeRefs() {
       --i;
     }
   }
-}
-
-function isAvailable() {
-  return !!window.keplr && window.keplr !== (window as any).leap;
 }

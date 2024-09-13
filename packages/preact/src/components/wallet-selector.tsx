@@ -42,7 +42,15 @@ export function WalletSelector({ networks, onSelect, ...props }: Readonly<Wallet
             }
           }}
         >
-          {signer.logoURL ? <img src={signer.logoURL.toString()} alt={signer.displayName} /> : signer.displayName}
+          {signer.logoURL ? (
+            <img
+              src={signer.logoURL.toString()}
+              alt={signer.displayName}
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            />
+          ) : (
+            signer.displayName
+          )}
         </WalletSelector.Choice>
       ))}
     </div>

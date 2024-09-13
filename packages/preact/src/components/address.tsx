@@ -65,7 +65,7 @@ export function UserAddress({
 function getLabel(addr: string | undefined, placeholder: string, trimSize: number, aliasSize = trimSize * 2) {
   if (!addr) return placeholder;
   const alias = addresses.alias(addr);
-  if (alias !== addr) return trimAlias(alias, aliasSize);
+  if (alias) return trimAlias(alias, aliasSize);
   return trimAddress(addr, trimSize);
 }
 

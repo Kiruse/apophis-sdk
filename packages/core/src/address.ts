@@ -13,13 +13,13 @@ import { pubkey, PublicKey } from './crypto/pubkey';
  */
 export const addresses = new class {
   /** Register an alias for the given address. */
-  alias(address: string): string {
-    return mw('addresses', 'alias').inv().fifo(address);
+  alias(address: string) {
+    return mw('addresses', 'alias').inv().fifoMaybe(address);
   }
 
   /** Resolve an address for the given alias. */
-  resolve(alias: string): string {
-    return mw('addresses', 'resolve').inv().fifo(alias);
+  resolve(alias: string) {
+    return mw('addresses', 'resolve').inv().fifoMaybe(alias);
   }
 
   /** Compute the address of the given public key for the given network. Different networks may use
