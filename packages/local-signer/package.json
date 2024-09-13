@@ -1,6 +1,6 @@
 {
   "name": "@apophis-sdk/local-signer",
-  "version": "0.0.4",
+  "version": "0.0.4-fix.1",
   "author": "Kiruse",
   "repository": "https://github.com/kiruse/apophis-sdk.git",
   "type": "module",
@@ -25,7 +25,7 @@
     "bech32": "^2.0.0"
   },
   "peerDependencies": {
-    "@apophis-sdk/core": "0.0.4",
+    "@apophis-sdk/core": "0.0.4-fix.1",
     "typescript": "^5.0.0"
   },
   "devDependencies": {

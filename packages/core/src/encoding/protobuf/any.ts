@@ -1,12 +1,13 @@
 import { defineMarshalUnit, extendDefaultMarshaller, Marshaller, MarshalUnit, morph, pass } from '@kiruse/marshal';
 import { isAnyable, isMarshalledAny } from '../../helpers.js';
+import { mw } from '../../middleware.js';
 import type { NetworkConfig } from '../../types.js';
 import { fromBase64, toBase64 } from '../../utils.js';
 
 /** Marshal unit for converting an `Any` type to the proper JSON variant & back for transmission. */
 export const AnyMarshalUnit = defineMarshalUnit(
   (value: any) => Any.isAny(value) ? morph({ typeUrl: value.typeUrl, value: toBase64(value.value) }) : pass,
-  (value: any) => isMarshalledAny(value) ? morph({ typeUrl: value.typeUrl, value: fromBase64(value.value) }) : pass,
+  (value: any) => isMarshalledAny(value) ? morph({ typeUrl: value.typeUrl, value: typeof value.value === 'string' ? fromBase64(value.value) : value.value }) : pass,
 );
 
 export type Anylike = Any | MarshalledAny;
@@ -79,14 +80,19 @@ Any.isAny = (value: any): value is Any => {
 /** Convert any compatible value to a `Any` type. */
 Any.encode = (network: NetworkConfig, value: any): Any => {
   if (isMarshalledAny(value)) return value;
-  const tmp = Any.marshallers.get(network).marshal(value);
+  const tmp = mw('protobuf', 'encode').fifoMaybe(network, value)
+    ?? Any.marshallers.get(network).marshal(value);
   if (Any.isAny(tmp)) return tmp;
   throw new Error('Invalid value for Any.encode');
 }
 
 /** Convert any compatible value from an `Any` type. */
 Any.decode = (network: NetworkConfig, value: Any): unknown => {
-  if (isMarshalledAny(value)) return Any.marshallers.get(network)!.unmarshal(value);
+  if (isMarshalledAny(value)) {
+    const result = mw('protobuf', 'decode').fifoMaybe(network, value)
+      ?? Any.marshallers.get(network).unmarshal(value);
+    if (!isMarshalledAny(result)) return result;
+  }
   if (isAnyable(value)) return value;
   throw new Error('Invalid value for Any.decode');
 }

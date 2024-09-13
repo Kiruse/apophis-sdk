@@ -43,7 +43,7 @@ describe('addresses', () => {
     const bobPriv = secp256k1.utils.randomPrivateKey();
     const bobPub = pubkey.secp256k1(secp256k1.getPublicKey(bobPriv));
 
-    expect(() => addresses.compute(network, alicePub.key)).not.toThrowError(MiddlewarePipelineError);
-    expect(() => addresses.compute(network, bobPub.key)).not.toThrowError(MiddlewarePipelineError);
+    expect(() => addresses.compute(network, alicePub)).not.toThrowError(MiddlewarePipelineError);
+    expect(() => addresses.compute(network, bobPub)).not.toThrowError(MiddlewarePipelineError);
   });
 });

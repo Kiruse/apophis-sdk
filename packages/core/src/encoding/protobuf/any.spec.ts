@@ -1,11 +1,15 @@
+import { createMarshaller, defineMarshalUnit, extendMarshaller, morph, pass } from '@kiruse/marshal';
+import * as secp256k1 from '@noble/secp256k1';
 import { describe, expect, test } from 'bun:test';
 import { MsgSend } from 'cosmjs-types/cosmos/bank/v1beta1/tx.js';
+import { NetworkConfig } from '../../types.js';
 import { Any, AnyMarshalUnit } from './any.js';
-import { createMarshaller, defineMarshalUnit, extendMarshaller, morph, pass } from '@kiruse/marshal';
 import { fromUtf8, toBase64, toUtf8 } from '../../utils.js';
 import { AnyTypeUrlSymbol } from '../../constants.js';
+import { pubkey, Secp256k1PublicKeyMarshalUnit } from '../../crypto/pubkey.js';
 import { fromAnyable, isAnyable, isMarshalledAny, toAnyable } from '../../helpers.js';
-import { network } from 'src/test-helpers.js';
+import { mw } from '../../middleware.js';
+import { network } from '../../test-helpers.js';
 
 describe('Any', () => {
   test('Un/marshal', () => {
@@ -98,6 +102,47 @@ describe('Any', () => {
     expect(decoded).toEqual(ref);
     expect(encoded).toEqual({ typeUrl: '/test', value: fromUtf8(`123:foobar`) });
   });
+
+  test('Any.encode/.decode w/ middleware', () => {
+    const _network1 = { ...network };
+    const _network2 = { ...network };
+    const priv = secp256k1.utils.randomPrivateKey();
+    const pub = pubkey.secp256k1(secp256k1.getPublicKey(priv, true));
+    const bytes = Uint8Array.from([10, pub.key.length, ...pub.key]);
+
+    const marshaller = createMarshaller([Secp256k1PublicKeyMarshalUnit, AnyMarshalUnit]);
+    Any.marshallers.set(_network1, marshaller);
+    Any.marshallers.set(_network2, marshaller);
+
+    mw.use({
+      protobuf: {
+        encode(network: NetworkConfig, value: any) {
+          if (network !== _network1) return;
+          if (!pubkey.isSecp256k1(value)) return;
+          return Any('/injective.crypto.v1beta1.ethsecp256k1.PubKey', bytes);
+        },
+        decode(network: NetworkConfig, value: Any) {
+          if (network !== _network1) return;
+          if (value.typeUrl !== '/injective.crypto.v1beta1.ethsecp256k1.PubKey') return;
+          // magic type byte (fixed) + length (fixed) + key bytes (variable)
+          if (value.value[0] !== 10 || value.value[1] !== 33) throw Error('Invalid public key');
+          return pubkey.secp256k1(value.value.slice(2));
+        },
+      },
+    });
+
+    const encoded1 = Any.encode(_network1, pub);
+    const decoded1 = Any.decode(_network1, encoded1);
+
+    expect(decoded1).toEqual(pub);
+    expect(encoded1).toEqual({ typeUrl: '/injective.crypto.v1beta1.ethsecp256k1.PubKey', value: bytes });
+
+    const encoded2 = Any.encode(_network2, pub);
+    const decoded2 = Any.decode(_network2, encoded2);
+
+    expect(decoded2).toEqual(pub);
+    expect(encoded2).toEqual({ typeUrl: pubkey.secp256k1.typeUrl, value: bytes });
+  })
 
   test('Any.isAny', () => {
     expect(Any.isAny({})).toBeFalse();

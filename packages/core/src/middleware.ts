@@ -1,16 +1,23 @@
 import { PublicKey } from './crypto/pubkey';
+import { type Any } from './encoding/protobuf/any';
 import { type NetworkConfig } from './networks';
 
 const middlewares: Middleware[] = [];
 
 export interface Middleware {
   addresses: MiddlewareAddresses;
+  protobuf: MiddlewareProtobuf;
 }
 
 export interface MiddlewareAddresses {
   alias(address: string): string | undefined;
   resolve(alias: string): string | undefined;
   compute(prefixOrNetwork: NetworkConfig | string, publicKey: PublicKey): string;
+}
+
+export interface MiddlewareProtobuf {
+  encode(network: NetworkConfig, value: any): Any;
+  decode(network: NetworkConfig, value: Any): any;
 }
 
 export type MiddlewareImpl = DeepPartial<Middleware>;
@@ -59,11 +66,19 @@ class MiddlewarePipeline<KP extends string[]> {
    * If no middleware handles the call, throws a `MiddlewarePipelineError`.
    */
   fifo(...args: FifoArgs<KP>): Defined<FifoResult<KP>> {
+    const result = this.fifoMaybe(...args);
+    if (!result) throw new MiddlewarePipelineError(`No FIFO middleware handled the call`);
+    return result;
+  }
+
+  /** Call the middlewares with the given arguments, returning the first that returns a non-undefined value.
+   * If no middleware handles the call, returns `undefined`.
+   */
+  fifoMaybe(...args: FifoArgs<KP>): Defined<FifoResult<KP>> | undefined {
     for (const cb of this.iterator(this.#extract)) {
       const result = cb(...args);
       if (result) return result;
     }
-    throw new MiddlewarePipelineError(`No FIFO middleware handled the call`);
   }
 
   /** Notify all middlewares with the given arguments. Awaits all middlewares to complete. Uncaught errors are logged to console. */

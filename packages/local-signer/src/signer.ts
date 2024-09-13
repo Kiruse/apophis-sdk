@@ -3,15 +3,14 @@ import { connections, Cosmos, signals, SignData, type NetworkConfig, type Signer
 import { Tx } from '@apophis-sdk/core/tx.js';
 import { BroadcastMode } from '@apophis-sdk/core/types.sdk.js';
 import { addresses } from '@apophis-sdk/core/address.js';
-import { pubkey, PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
+import { pubkey } from '@apophis-sdk/core/crypto/pubkey.js';
 import * as bip32 from '@scure/bip32';
 import * as bip39 from '@scure/bip39';
 import { wordlist as _wordlist } from '@scure/bip39/wordlists/english';
 import * as secp256k1 from '@noble/secp256k1';
 import { hmac } from '@noble/hashes/hmac';
 import { sha256 } from '@noble/hashes/sha256';
-import './mw/injective.js';
-import { sha512 } from '@noble/hashes/sha512';
+// import './mw/injective.js';
 
 secp256k1.etc.hmacSha256Sync = (k, ...m) => hmac(sha256, k, secp256k1.etc.concatBytes(...m));
 
