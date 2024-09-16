@@ -32,9 +32,10 @@ export function Address({
   noControls,
   onCopy = () => { children && navigator.clipboard.writeText(children) },
 }: Readonly<AddressProps>) {
+  const [isAlias, label] = getLabel(children, placeholder, trimSize);
   return (
-    <span class={cx('apophis-address', className)} style={style}>
-      {getLabel(children, placeholder, trimSize)}
+    <span class={cx('apophis-address', { alias: isAlias, address: !isAlias }, className)} style={style}>
+      {label}
       {!noControls && (
         <span class="apophis-address-icons" style={{ display: 'inline-flex', flexDirection: 'row', gap: 4, alignItems: 'center', paddingLeft: 4 }}>
           <CopyIcon onClick={onCopy} />
@@ -62,11 +63,11 @@ export function UserAddress({
   </Address>
 }
 
-function getLabel(addr: string | undefined, placeholder: string, trimSize: number, aliasSize = trimSize * 2) {
-  if (!addr) return placeholder;
+function getLabel(addr: string | undefined, placeholder: string, trimSize: number, aliasSize = trimSize * 2): [boolean, string] {
+  if (!addr) return [false, placeholder];
   const alias = addresses.alias(addr);
-  if (alias) return trimAlias(alias, aliasSize);
-  return trimAddress(addr, trimSize);
+  if (alias) return [true, trimAlias(alias, aliasSize)];
+  return [false, trimAddress(addr, trimSize)];
 }
 
 function trimAlias(alias: string, trimSize: number) {
