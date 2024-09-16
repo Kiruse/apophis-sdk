@@ -7,10 +7,6 @@ import { Event } from '@kiruse/typed-events';
  * A big departure from the underlying WebSockets usage pattern is that `PowerSocket` is designed to
  * provide a stable instance. It is designed to represent a single stateful connection to a remote
  * endpoint, not a single-use connection that must be re-created whenever the connection is lost.
- *
- * It also sports a complementary `Heartrate` class to trigger (and possibly receive) regular
- * heartbeats to maintain a connection. Some connections can degrade over time when not in active
- * use, and heartbeats can help keep the connection alive and responsive.
  */
 export class PowerSocket<T = string> {
   #ws: WebSocket | undefined;

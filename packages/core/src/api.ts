@@ -404,6 +404,7 @@ export class CosmosWebSocket {
     if (!this.socket.connected) return;
     const id = this.#nextSubId++;
     const timeout = setTimeout(() => {
+      if (!this.socket.connected) return;
       console.warn('Heartbeat timed out, reconnecting...');
       this.reconnect();
     }, 30000);
