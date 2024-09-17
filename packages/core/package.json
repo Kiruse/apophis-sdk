@@ -1,6 +1,6 @@
 {
   "name": "@apophis-sdk/core",
-  "version": "0.0.5-alpha.7",
+  "version": "0.0.5-beta.4",
   "author": "Kiruse",
   "repository": "https://github.com/kiruse/apophis-sdk.git",
   "type": "module",

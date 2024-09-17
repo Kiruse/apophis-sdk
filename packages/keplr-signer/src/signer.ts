@@ -117,6 +117,8 @@ export abstract class KeplrSignerBase implements Signer {
         });
       }));
     }));
+
+    this.signData.value = this.getSignData(signals.network.value ?? [...this.#signData.keys()][0]);
   }
 
   isConnected(network: NetworkConfig): boolean {

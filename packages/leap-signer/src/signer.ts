@@ -116,6 +116,8 @@ export abstract class LeapSignerBase implements Signer {
         });
       }));
     }));
+
+    this.signData.value = this.getSignData(signals.network.value ?? [...this.#signData.keys()][0]);
   }
 
   isConnected(network: NetworkConfig): boolean {
@@ -230,7 +232,7 @@ signals.network.subscribe(network => {
 });
 
 if (typeof window !== 'undefined') {
-  window.addEventListener('keplr_keystorechange', () => {
+  window.addEventListener('leap_keystorechange', () => {
     for (const ref of signers) {
       const signer = ref.deref();
       if (!signer) continue;
