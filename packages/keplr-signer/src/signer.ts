@@ -1,9 +1,8 @@
-import { connections, Cosmos, signals, SignData, type NetworkConfig, type Signer } from '@apophis-sdk/core';
-import { pubkey } from '@apophis-sdk/core/crypto/pubkey.js';
+import { connections, Cosmos, type NetworkConfig, Signer } from '@apophis-sdk/core';
+import { pubkey, PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
 import { Tx } from '@apophis-sdk/core/tx.js';
 import { fromBase64, toHex } from '@apophis-sdk/core/utils.js';
 import { type Window as KeplrWindow } from '@keplr-wallet/types';
-import { signal } from '@preact/signals-core';
 import { AuthInfo, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import Long from 'long';
 import LOGO_DATA_URL from './logo';
@@ -14,14 +13,14 @@ declare global {
   }
 }
 
-const signers: Array<WeakRef<KeplrSignerBase>> = [];
+var signers: Array<WeakRef<KeplrSignerBase>> = [];
 
-export abstract class KeplrSignerBase implements Signer {
-  readonly available = signal(isAvailable());
-  readonly signData = signal<SignData | undefined>();
-  #signData = new Map<NetworkConfig, SignData>();
+export abstract class KeplrSignerBase extends Signer {
+  readonly canAutoReconnect = true;
 
   constructor() {
+    super();
+    this.available.value = isAvailable();
     signers.push(new WeakRef(this));
   }
 
@@ -38,24 +37,8 @@ export abstract class KeplrSignerBase implements Signer {
     if (!networks.length) throw new Error('No networks provided');
     await Promise.all(networks.map((network) => window.keplr?.experimentalSuggestChain(toChainSuggestion(network))));
     await window.keplr.enable(networks.map((network) => network.chainId));
-
     await this.loadSignData(networks);
-    this.signData.value = this.getSignData(signals.network.value ?? networks[0]);
-
-    for (const network of networks) {
-      if (!this.#signData.has(network)) {
-        Cosmos.ws(network).onBlock(async block => {
-          const values = Cosmos.getEventValues(block.events, 'message', 'sender');
-          if (values.includes(this.address(network))) {
-            const { sequence } = await Cosmos.getAccountInfo(network, this.address(network));
-            this.#signData.set(network, {
-              ...this.#signData.get(network)!,
-              sequence,
-            });
-          }
-        })
-      }
-    }
+    Cosmos.watchSigner(this);
   }
 
   abstract sign(network: NetworkConfig, tx: Tx): Promise<Tx>;
@@ -76,53 +59,23 @@ export abstract class KeplrSignerBase implements Signer {
     }
   }
 
-  getSignData(network: NetworkConfig): SignData {
-    const data = this.#signData.get(network);
-    if (!data) throw new Error('Account not found');
-    return data;
-  }
-
-  addresses(networks?: NetworkConfig[]): string[] {
-    if (!networks) return Array.from(this.#signData.values()).map(data => data.address);
-    return networks.map(network => this.address(network));
-  }
-
-  address(network: NetworkConfig): string {
-    return this.getSignData(network).address;
-  }
-
   /** Load `SignData` for the given networks. This is intended for internal use only and will be
    * automatically called by the integration.
    */
   async loadSignData(networks?: NetworkConfig[]) {
-    networks ??= Array.from(this.#signData.keys());
-
-    await Promise.all(networks.map(async network => {
-      const offlineSigner = window.keplr!.getOfflineSigner(network.chainId);
-      const accounts = await offlineSigner.getAccounts();
-
-      await Promise.all(accounts.map(async account => {
-        const { algo, address, pubkey: publicKey } = account;
-        if (algo !== 'secp256k1' && algo !== 'ed25519') throw new Error('Unsupported algorithm');
-
-        const { sequence, accountNumber } = await Cosmos.getAccountInfo(network, address).catch(() => ({ sequence: 0n, accountNumber: 0n }));
-
-        this.#signData.set(network, {
-          address,
-          publicKey: algo === 'secp256k1'
-            ? pubkey.secp256k1(publicKey)
-            : pubkey.ed25519(publicKey),
-          sequence,
-          accountNumber,
-        });
-      }));
-    }));
-
-    this.signData.value = this.getSignData(signals.network.value ?? [...this.#signData.keys()][0]);
+    await this._initSignData(networks ?? this.networks.value);
   }
 
-  isConnected(network: NetworkConfig): boolean {
-    return this.#signData.has(network);
+  protected async getAccounts(network: NetworkConfig): Promise<{ address: string; publicKey: PublicKey }[]> {
+    const offlineSigner = window.keplr!.getOfflineSigner(network.chainId);
+    return (await offlineSigner.getAccounts())
+      .filter(account => account.algo === 'secp256k1' || account.algo === 'ed25519')
+      .map(account => ({
+        address: account.address,
+        publicKey: account.algo === 'secp256k1'
+          ? pubkey.secp256k1(account.pubkey)
+          : pubkey.ed25519(account.pubkey),
+      }));
   }
 }
 
@@ -137,11 +90,11 @@ export abstract class KeplrSignerBase implements Signer {
  * When detecting, you need to check only one of `await KeplrDirect.probe()` or `await KeplrAmino.probe()`
  * as they abstract the same interface.
  */
-export const KeplrDirect = new class extends KeplrSignerBase {
+export class KeplrDirectSigner extends KeplrSignerBase {
   readonly type = 'Keplr.Direct';
 
   async sign(network: NetworkConfig, tx: Tx): Promise<Tx> {
-    const { address, publicKey } = this.getSignData(network);
+    const { address, publicKey } = this.getSignData(network)[0];
     if (!window.keplr) throw new Error('Keplr not available');
     if (!address || !publicKey || !network) throw new Error('Account not bound to a network');
 
@@ -175,6 +128,8 @@ export const KeplrDirect = new class extends KeplrSignerBase {
     return tx;
   }
 }
+/** Instance of KeplrDirectSigner. Most likely the only instance you'll need. */
+export const KeplrDirect = new KeplrDirectSigner();
 
 function toChainSuggestion(network: NetworkConfig): Parameters<Required<KeplrWindow>['keplr']['experimentalSuggestChain']>[0] {
   return {
@@ -219,37 +174,14 @@ function toChainSuggestion(network: NetworkConfig): Parameters<Required<KeplrWin
   };
 }
 
-signals.network.subscribe(network => {
-  for (const ref of signers) {
-    const signer = ref.deref();
-    if (!signer) continue;
-    if (!network || !signer.isConnected(network)) {
-      signer.signData.value = undefined;
-    } else {
-      signer.signData.value = signer.getSignData(network);
-    }
-  }
-  purgeRefs();
-});
-
+// Update all signers when the keystore changes
 if (typeof window !== 'undefined') {
   window.addEventListener('keplr_keystorechange', () => {
-    for (const ref of signers) {
-      const signer = ref.deref();
-      if (!signer) continue;
-      signer.loadSignData();
+    signers = signers.filter(s => !!s.deref());
+    for (const signer of signers) {
+      signer.deref()!.loadSignData();
     }
   });
-}
-
-function purgeRefs() {
-  for (let i = 0; i < signers.length; ++i) {
-    const ref = signers[i];
-    if (!ref.deref()) {
-      signers.splice(i, 1);
-      --i;
-    }
-  }
 }
 
 function isAvailable() {

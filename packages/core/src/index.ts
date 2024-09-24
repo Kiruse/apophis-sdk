@@ -8,6 +8,7 @@ export * from './connection.js';
 export * from './constants.js';
 export * from './networks.js';
 export * as signals from './signals.js';
+export * from './signer.js';
 export * from './types.js';
 
 export default {

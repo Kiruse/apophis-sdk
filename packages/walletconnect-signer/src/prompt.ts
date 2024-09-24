@@ -1,5 +1,10 @@
 import qr from 'qrcode';
 import { type WalletConnectSignerConfig } from './config';
+import { SignClient } from './types.api';
+import { NetworkConfig } from '@apophis-sdk/core';
+import { SessionTypes } from '@walletconnect/types';
+
+type ConnectResponse = Awaited<ReturnType<SignClient['connect']>>;
 
 /** Router function for prompting a WalletConnect URI.
  *
@@ -13,22 +18,33 @@ import { type WalletConnectSignerConfig } from './config';
  *   supported here.
  * - In other cases, it throws an error.
  */
-export function promptURI(uri: string, config: WalletConnectSignerConfig) {
+export async function prompt(networks: NetworkConfig[], client: SignClient, config: WalletConnectSignerConfig): Promise<SessionTypes.Struct> {
+  const connectResponse = await client.connect({
+    pairingTopic: client.pairing.getAll({ active: true })[0]?.topic,
+    requiredNamespaces: {
+      cosmos: {
+        methods: ['cosmos_getAccounts', 'cosmos_signDirect', 'cosmos_signAmino'],
+        events: [],
+        chains: networks.map((network) => 'cosmos:' + network.chainId),
+      },
+    },
+  });
+
   if (typeof navigator !== 'undefined') {
     if (/android/i.test(navigator.userAgent) || /iphone/i.test(navigator.userAgent)) {
-      return promptMobile(uri, config);
+      return await promptMobile(connectResponse, config);
     } else {
-      return promptBrowser(uri, config);
+      return await promptBrowser(connectResponse, config);
     }
   } else if (typeof document !== 'undefined') {
-    return promptBrowser(uri, config);
+    return await promptBrowser(connectResponse, config);
   } else if (typeof process !== 'undefined' && typeof process.stdout !== 'undefined') {
-    return promptTerminal(uri, config);
+    return await promptTerminal(connectResponse, config);
   }
   throw new Error('Unsupported WalletConnect environment');
 }
 
-async function promptBrowser(uri: string, config: WalletConnectSignerConfig) {
+async function promptBrowser({ uri, approval }: ConnectResponse, config: WalletConnectSignerConfig) {
   const modalRoot = document.createElement('div');
   let styles: any;
   modalRoot.classList.add('apophis-walletconnect-modal-backdrop');
@@ -53,35 +69,48 @@ async function promptBrowser(uri: string, config: WalletConnectSignerConfig) {
   `;
 
   const content = modal.querySelector('main')!;
-  content.innerHTML = `
-    <canvas class="apophis-walletconnect-qr"></canvas>
-    <span>Scan the QR code with your wallet to connect</span>
-    <span class="apophis-walletconnect-modal-separator">- OR -</span>
-    <span class="apophis-walletconnect-modal-uri">
-      <a href="${uri}" target="_blank">Tap here to connect</a>
-    </span>
-  `;
 
-  const uriElement = modal.querySelector('.apophis-walletconnect-modal-uri')!;
-  const copyIcon = iconCopy();
-  uriElement.appendChild(copyIcon);
-  copyIcon.addEventListener('click', () => {
-    navigator.clipboard.writeText(uri);
-    const checkIcon = iconCheck();
-    copyIcon.replaceWith(checkIcon);
-    setTimeout(() => {
-      checkIcon.replaceWith(copyIcon);
-    }, 5000);
-  });
+  if (uri) {
+    content.innerHTML = `
+      <canvas class="apophis-walletconnect-qr"></canvas>
+      <span>Scan the QR code with your wallet to connect</span>
+      <span class="apophis-walletconnect-modal-separator">- OR -</span>
+      <span class="apophis-walletconnect-modal-uri">
+        <a href="${uri}" target="_blank">Tap here to connect</a>
+      </span>
+    `;
 
-  const canvas = modal.querySelector('canvas')!;
-  await qr.toCanvas(canvas, uri);
+    const uriElement = modal.querySelector('.apophis-walletconnect-modal-uri')!;
+    const copyIcon = iconCopy();
+    uriElement.appendChild(copyIcon);
+    copyIcon.addEventListener('click', () => {
+      navigator.clipboard.writeText(uri);
+      const checkIcon = iconCheck();
+      copyIcon.replaceWith(checkIcon);
+      setTimeout(() => {
+        checkIcon.replaceWith(copyIcon);
+      }, 5000);
+    });
+
+    const canvas = modal.querySelector('canvas')!;
+    await qr.toCanvas(canvas, uri);
+  } else {
+    content.innerHTML = `
+      <span>Please re-approve the connection request in your wallet.</span>
+    `;
+  }
 
   if (!config.unstyled) {
     styles = document.createElement('style');
     styles.innerHTML = MODAL_CSS;
     document.head.appendChild(styles);
   }
+
+  return await approval()
+    .finally(() => {
+      modalRoot.remove();
+      styles?.remove();
+    });
 }
 
 function iconCopy() {
@@ -113,15 +142,26 @@ function createSvg(viewbox: string, width: number, height: number) {
   return svg;
 }
 
-async function promptMobile(uri: string, config: WalletConnectSignerConfig) {
-  if (navigator.clipboard) {
+async function promptMobile({ uri, approval }: ConnectResponse, config: WalletConnectSignerConfig) {
+  if (uri && navigator.clipboard) {
     await navigator.clipboard.writeText(uri);
   }
-  location.assign(uri);
+
+  const a = document.createElement('a');
+  a.href = uri ?? 'wc://'; // try to open any app that corresponds to the WC URI scheme
+  a.target = '_blank';
+  a.click();
+
+  return await approval();
 }
 
-async function promptTerminal(uri: string, config: WalletConnectSignerConfig) {
-  console.log(uri);
+async function promptTerminal({ uri, approval }: ConnectResponse, config: WalletConnectSignerConfig) {
+  if (!uri) {
+    console.info('Please re-approve the connection request in your wallet.');
+  } else {
+    console.info('Please connect to the following WalletConnect URI:', uri);
+  }
+  return await approval();
 }
 
 const MODAL_CSS = `

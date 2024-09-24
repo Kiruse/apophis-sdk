@@ -7,7 +7,8 @@ import { Tx as SdkTx } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { Cosmos } from './api.js';
 import { pubkey } from './crypto/pubkey.js';
 import { Tx } from './tx.js';
-import type { NetworkConfig, Signer, SignData } from './types.js';
+import { Signer } from './signer.js';
+import type { NetworkConfig } from './types.js';
 import { addresses } from './address.js';
 import { type Asset } from './networks.js';
 import { Any } from './encoding/protobuf/any.js';
@@ -29,21 +30,21 @@ const network: NetworkConfig = {
   addressPrefix: 'neutron',
 };
 
-class MockSigner implements Signer {
+class MockSigner extends Signer {
   readonly type = 'mock';
-  readonly available = signal(true);
-  readonly signData = signal<SignData | undefined>();
   readonly displayName = 'Mock';
   readonly logoURL = undefined;
-  #sequence = 0n;
+  readonly canAutoReconnect = false;
 
   constructor(private readonly privateKey: Uint8Array) {
-    this.signData.value = {
+    super();
+    this.available.value = true;
+    this.signDatas.value = new Map([[network, [{
       publicKey: pubkey.secp256k1(secp256k1.getPublicKey(privateKey, true)),
       address: addresses.compute(network, pubkey.secp256k1(secp256k1.getPublicKey(privateKey, true))),
       accountNumber: 1n,
       sequence: 0n,
-    };
+    }]]]);
   }
 
   async probe() {
@@ -63,24 +64,12 @@ class MockSigner implements Signer {
     throw new Error('Not implemented');
   }
 
-  addresses(networks?: NetworkConfig[]): string[] {
-    return networks?.map(network => this.address(network)) ?? [];
-  }
-
-  address(network: NetworkConfig): string {
-    return addresses.compute(network, pubkey.secp256k1(secp256k1.getPublicKey(this.privateKey, true)));
-  }
-
-  getSignData(network: NetworkConfig): SignData {
-    const pub = secp256k1.getPublicKey(this.privateKey, true);
-    const address = addresses.compute(network, pubkey.secp256k1(pub));
-
-    return {
-      accountNumber: 1n,
-      sequence: this.#sequence,
-      publicKey: pubkey.secp256k1(pub),
-      address,
-    };
+  protected async getAccounts(network: NetworkConfig) {
+    const publicKey = pubkey.secp256k1(secp256k1.getPublicKey(this.privateKey, true));
+    return [{
+      address: addresses.compute(network, publicKey),
+      publicKey,
+    }];
   }
 }
 
@@ -105,7 +94,7 @@ describe('Tx', () => {
                 mode: SignMode.SIGN_MODE_DIRECT,
               },
             },
-            publicKey: Any.encode(network, signer.getSignData(network).publicKey),
+            publicKey: Any.encode(network, signer.getSignData(network)[0].publicKey),
             sequence: 0n,
           }
         ],
@@ -145,7 +134,7 @@ describe('Tx', () => {
                 mode: SignMode.SIGN_MODE_DIRECT,
               },
             },
-            publicKey: Any.encode(network, signer.getSignData(network).publicKey),
+            publicKey: Any.encode(network, signer.getSignData(network)[0].publicKey),
             sequence: 0n,
           }
         ],

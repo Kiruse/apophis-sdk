@@ -1,5 +1,5 @@
 import { signers } from './constants';
-import { Signer } from './types';
+import type { Signer } from './signer';
 
 export interface CosmosWindow {
   signers: Signer[];

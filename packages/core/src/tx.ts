@@ -5,7 +5,8 @@ import { Cosmos } from './api.js';
 import { config } from './constants.js';
 import { Any } from './encoding/protobuf/any.js';
 import type { Gas } from './types.sdk.js';
-import { NetworkConfig, Signer } from './types.js';
+import type { Signer } from './signer.js';
+import { NetworkConfig } from './types.js';
 import { sha256 } from '@noble/hashes/sha256';
 
 export type TxStatus = 'unsigned' | 'signed' | 'confirmed' | 'failed';
@@ -106,13 +107,13 @@ export class Tx {
       bodyBytes: TxBody.encode(sdktx.body!).finish(),
       authInfoBytes: AuthInfo.encode(sdktx.authInfo!).finish(),
       chainId: network.chainId,
-      accountNumber: signer.getSignData(network).accountNumber,
+      accountNumber: signer.getSignData(network)[0].accountNumber,
     });
   }
 
   /** Get a partial Cosmos SDK Tx object. This does not require gas or signature, in which case it can be used for simulation (including gas estimation). */
   sdkTx(network: NetworkConfig, signer: Signer, signature = new Uint8Array()): SdkTx {
-    const { publicKey, sequence } = signer.getSignData(network);
+    const { publicKey, sequence } = signer.getSignData(network)[0];
     if (!network || !publicKey) throw new Error('Account not bound');
     return SdkTx.fromPartial({
       body: {

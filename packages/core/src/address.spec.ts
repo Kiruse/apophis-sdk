@@ -13,8 +13,8 @@ describe('addresses', () => {
     const alice = Math.random().toString(36).slice(2);
     const bob = Math.random().toString(36).slice(2);
 
-    expect(() => addresses.alias(alice)).toThrowError(MiddlewarePipelineError);
-    expect(() => addresses.alias(bob)).toThrowError(MiddlewarePipelineError);
+    expect(addresses.alias(alice)).toBeUndefined();
+    expect(addresses.alias(bob)).toBeUndefined();
 
     MemoryAddressBook.record(alice, 'alice');
     MemoryAddressBook.record(bob, 'bob');
@@ -27,8 +27,8 @@ describe('addresses', () => {
     const alice = Math.random().toString(36).slice(2);
     const bob = Math.random().toString(36).slice(2);
 
-    expect(() => addresses.resolve(alice)).toThrowError(MiddlewarePipelineError);
-    expect(() => addresses.resolve(bob)).toThrowError(MiddlewarePipelineError);
+    expect(addresses.resolve(alice)).toBeUndefined();
+    expect(addresses.resolve(bob)).toBeUndefined();
 
     MemoryAddressBook.record(alice, 'alice');
     MemoryAddressBook.record(bob, 'bob');

@@ -1,4 +1,5 @@
-import type { ApophisConfig, Signer } from './types';
+import type { Signer } from './signer';
+import type { ApophisConfig } from './types';
 
 /** Symbol used to mark the `typeUrl` property of `Any` types. This symbol helps distinguish types that can be converted to `Any` from an `Any` type itself. */
 export const AnyTypeUrlSymbol = Symbol('Any.TypeUrl');

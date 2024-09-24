@@ -1,9 +1,8 @@
-import { computed, signal } from '@preact/signals-core';
-import { connections, Cosmos, signals, SignData, type NetworkConfig, type Signer } from '@apophis-sdk/core';
+import { connections, Cosmos, SignData, type NetworkConfig, Signer } from '@apophis-sdk/core';
 import { Tx } from '@apophis-sdk/core/tx.js';
 import { BroadcastMode } from '@apophis-sdk/core/types.sdk.js';
 import { addresses } from '@apophis-sdk/core/address.js';
-import { pubkey } from '@apophis-sdk/core/crypto/pubkey.js';
+import { pubkey, PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
 import * as bip32 from '@scure/bip32';
 import * as bip39 from '@scure/bip39';
 import { wordlist as _wordlist } from '@scure/bip39/wordlists/english';
@@ -14,18 +13,16 @@ import { sha256 } from '@noble/hashes/sha256';
 
 secp256k1.etc.hmacSha256Sync = (k, ...m) => hmac(sha256, k, secp256k1.etc.concatBytes(...m));
 
-export class LocalSigner implements Signer {
+export class LocalSigner extends Signer {
   static readonly instance = new LocalSigner();
 
-  #networks: NetworkConfig[] = [];
   #privateKey: Uint8Array | undefined;
   #seed: Uint8Array | undefined;
   #signData = new Map<NetworkConfig, SignData>();
   readonly type = 'local';
-  readonly available = signal(false);
+  readonly canAutoReconnect = true;
   readonly displayName = 'Local';
   readonly logoURL = undefined;
-  readonly signData = computed(() => signals.network.value ? this.getSignData(signals.network.value) : undefined);
 
   setPrivateKey(privateKey: Uint8Array) {
     if (privateKey.length !== 32) throw new Error('Invalid private key length');
@@ -43,17 +40,9 @@ export class LocalSigner implements Signer {
     return Promise.resolve(true);
   }
 
-  async connect(networks: NetworkConfig[]): Promise<void> {
-    this.#networks = networks;
-
-    await Promise.all(networks.map(async network => {
-      const priv = this.#getPrivateKey(network);
-      let pub = pubkey.secp256k1(secp256k1.getPublicKey(priv, true));
-      const signData = await Cosmos.watchSignData(network, pub);
-      this.#signData.set(network, signData);
-    }));
-
-    return Promise.resolve();
+  async connect(networks: NetworkConfig[]) {
+    await this._initSignData(networks);
+    Cosmos.watchSigner(this);
   }
 
   async sign(network: NetworkConfig, tx: Tx): Promise<Tx> {
@@ -61,7 +50,7 @@ export class LocalSigner implements Signer {
     const signature = secp256k1.sign(bytes, this.#getPrivateKey(network));
     const sigBytes = signature.toCompactRawBytes();
     if (sigBytes.length !== 64) throw new Error('Invalid signature length');
-    if (!secp256k1.verify(sigBytes, bytes, this.getSignData(network).publicKey.key, { lowS: true }))
+    if (!secp256k1.verify(sigBytes, bytes, this.getSignData(network)[0].publicKey.key, { lowS: true }))
       throw new Error('Invalid signature');
 
     tx.setSignature(network, this, sigBytes);
@@ -84,16 +73,10 @@ export class LocalSigner implements Signer {
     return response.txhash;
   }
 
-  addresses(networks: NetworkConfig[] = this.#networks): string[] {
-    return networks.map(network => this.address(network));
-  }
-
-  address(network: NetworkConfig): string {
-    return addresses.compute(network, this.getSignData(network).publicKey);
-  }
-
-  getSignData(network: NetworkConfig): SignData {
-    return this.#signData.get(network)!;
+  protected async getAccounts(network: NetworkConfig): Promise<{ address: string; publicKey: PublicKey; }[]> {
+    const priv = this.#getPrivateKey(network);
+    const pub = pubkey.secp256k1(secp256k1.getPublicKey(priv, true));
+    return [{ address: addresses.compute(network, pub), publicKey: pub }];
   }
 
   #getPrivateKey(network: NetworkConfig, accountIndex = 0, addressIndex = 0) {

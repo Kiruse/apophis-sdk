@@ -13,7 +13,8 @@ import { BytesMarshalUnit } from './marshal.js';
 import { PowerSocket } from './powersocket.js';
 import { TendermintQuery } from './query.js';
 import * as signals from './signals.js';
-import type { NetworkConfig, SignData } from './types.js';
+import type { SignData, Signer } from './signer.js';
+import type { NetworkConfig } from './types.js';
 import type { BasicRestApi, BlockEvent, BlockEventRaw, CosmosEvent, TransactionEvent, TransactionEventRaw, WS } from './types.sdk.js';
 import { Tx } from './tx.js';
 import { fromBase64, fromSdkPublicKey, toBase64, toHex } from './utils.js';
@@ -36,8 +37,8 @@ const { marshal, unmarshal } = extendDefaultMarshaller([
 export const Cosmos = new class {
   #apis = new Map<NetworkConfig, BasicRestApi>();
   #sockets = new Map<NetworkConfig, CosmosWebSocket>();
-  #signData = new Map<NetworkConfig, SignData[]>();
-  #signDataWatchers = new Map<NetworkConfig, Unsub>();
+  #signers: WeakRef<Signer>[] = [];
+  #networkWatchers = new Map<NetworkConfig, Unsub>();
 
   /** Get a bound REST API. When undefined, gets the REST API for the current `defaultNetwork` signal
    * value. If that, too, is undefined, throws an error. Note that this associates the concrete
@@ -82,68 +83,104 @@ export const Cosmos = new class {
     };
   }
 
-  async watchSignData(network: NetworkConfig, publicKey: PublicKey) {
-    if (!this.#signData.has(network)) this.#signData.set(network, []);
-    const signData = this.#signData.get(network)!;
-    const address = addresses.compute(network, publicKey);
-    const existing = signData.find(s => s.address === address);
-    if (existing) return existing;
-
-    const { sequence, accountNumber } = await this.getAccountInfo(network, address).catch(() => ({ sequence: 0n, accountNumber: 0n }));
-    const info: SignData = {
-      address,
-      publicKey,
-      sequence,
-      accountNumber,
-    };
-    signData.push(info);
-
-    this.#watchNetwork(network);
-    return info;
+  /** Watch a signer for network updates. This keeps the signer's sequence numbers in sync and
+   * updates the account number if the account hadn't been seen yet.
+   */
+  watchSigner(signer: Signer) {
+    const found = this.#signers.find(ref => ref.deref() === signer);
+    if (!found) this.#signers.push(new WeakRef(signer));
+    this.#updateNetworkWatchers();
   }
 
-  unwatchSignData(network: NetworkConfig, address: string) {
-    const signData = this.#signData.get(network)!;
-    const index = signData.findIndex(s => s.address === address);
-    if (index === -1) return;
-    signData.splice(index, 1);
-    if (signData.length === 0) {
-      this.#signDataWatchers.get(network)?.();
-      this.#signDataWatchers.delete(network);
-      this.#signData.delete(network);
+  #updateNetworkWatchers() {
+    const prevNetworks = new Set(this.#networkWatchers.keys());
+    const networks = new Set<NetworkConfig>();
+    for (const ref of this.#signers) {
+      const signer = ref.deref();
+      if (!signer) continue;
+      signer.networks.value.forEach(network => {
+        networks.add(network);
+      });
     }
+
+    const droppedNetworks = setDiff(prevNetworks, networks);
+    for (const network of droppedNetworks) {
+      this.#networkWatchers.get(network)?.();
+      this.#networkWatchers.delete(network);
+    }
+
+    const addedNetworks = setDiff(networks, prevNetworks);
+    for (const network of addedNetworks) {
+      this.#watchNetwork(network);
+    }
+
+    this.#purgeSigners();
   }
 
   #watchNetwork(network: NetworkConfig) {
+    // we do things by address here primarily, so it's easiest to build a map of all addresses to signDatas
+    const buildSignDataMap = () => {
+      const result: Record<string, SignData[]> = {};
+      const signers = this.#signers
+        .map(s => s.deref())
+        .filter(s => !!s)
+        .filter(s => s.networks.value.includes(network));
+      for (const signer of signers) {
+        const signDatas = signer.getSignData(network);
+        for (const signData of signDatas) {
+          result[signData.address] ??= [];
+          result[signData.address].push(signData);
+        }
+      }
+      return result;
+    }
+
     // watch for blocks involving our addresses as signers
     const unsub1 = this.ws(network).onBlock(async block => {
-      const addrs = this.#signData.get(network)!.map(s => s.address);
+      this.#purgeSigners();
       const txs = block.txs.map(tx => Cosmos.tryDecodeTx(tx)).filter(tx => typeof tx !== 'string');
+      const signerInfos = txs.flatMap(tx => tx.authInfo?.signerInfos).filter(info => !!info);
+      const signDataMap = buildSignDataMap();
 
-      for (const address of addrs) {
-        const signerInfos = txs.flatMap(tx => tx.authInfo?.signerInfos).filter(info => !!info);
-        for (const signerInfo of signerInfos) {
-          const pubkey = fromSdkPublicKey(signerInfo.publicKey!);
-          if (addresses.compute(network, pubkey) === address) {
-            const info = this.#signData.get(network)?.find(s => s.address === address);
-            if (info && info.sequence < signerInfo.sequence + 1n) info.sequence = signerInfo.sequence + 1n;
-          }
+      for (const signerInfo of signerInfos) {
+        const txPubkey = fromSdkPublicKey(signerInfo.publicKey!);
+        const txAddress = addresses.compute(network, txPubkey);
+        if (signDataMap[txAddress]) {
+          signDataMap[txAddress].forEach(signData => {
+            if (signData.sequence < signerInfo.sequence + 1n)
+              signData.sequence = signerInfo.sequence + 1n;
+            // if account number is 0, it has just been created. fetch its number
+            if (signData.accountNumber === 0n) {
+              Cosmos.getAccountInfo(network, signData.address).then(({ accountNumber }) => {
+                signData.accountNumber = accountNumber;
+              }).catch(() => { console.warn('Failed to fetch account number for ', signData.address) });
+            }
+          });
         }
       }
     });
+
     // upon reconnecting, update the sequence number for all accounts
     const unsub2 = this.ws(network).socket.onReconnect(async () => {
-      const infos = this.#signData.get(network)!;
-      for (const info of infos) {
-        const { sequence, accountNumber } = await this.getAccountInfo(network, info.address).catch(() => ({ sequence: 0n, accountNumber: 0n }));
-        if (info && info.sequence < sequence) info.sequence = sequence;
-        if (info && info.accountNumber === 0n) info.accountNumber = accountNumber;
+      this.#purgeSigners();
+      const signDataMap = buildSignDataMap();
+      for (const [address, signDatas] of Object.entries(signDataMap)) {
+        const { sequence, accountNumber } = await this.getAccountInfo(network, address).catch(() => ({ sequence: 0n, accountNumber: 0n }));
+        for (const signData of signDatas) {
+          if (signData.sequence < sequence) signData.sequence = sequence;
+          if (signData.accountNumber === 0n) signData.accountNumber = accountNumber;
+        }
       }
     });
-    this.#signDataWatchers.set(network, () => {
+
+    this.#networkWatchers.set(network, () => {
       unsub1();
       unsub2();
     });
+  }
+
+  #purgeSigners() {
+    this.#signers = this.#signers.filter(ref => ref.deref() !== undefined);
   }
 
   cosmwasm(network?: NetworkConfig) {
@@ -448,4 +485,13 @@ interface RPCError {
     data: string;
   };
   result?: undefined;
+}
+
+function setDiff<T>(setA: Set<T>, setB: Set<T>) {
+  //@ts-ignore
+  if (typeof Set.prototype.difference === 'function') {
+    //@ts-ignore
+    return setA.difference(setB);
+  }
+  return new Set(Array.from(setA).filter(x => !setB.has(x)));
 }

@@ -10,4 +10,6 @@ export interface WalletConnectSignerConfig {
   modalClassName?: string;
   /** Metadata to pass to WalletConnect. */
   metadata?: SignClientTypes.Metadata;
+  /** Encoding to use for signing. Defaults to 'base64'. */
+  encoding?: 'base64' | 'hex';
 }

@@ -1,7 +1,7 @@
 # @apophis-sdk/walletconnect-signer
 [WalletConnect](https://walletconnect.network/) integration for the [Apophis Cosmos SDK](../../README.md).
 
-This integration is built on top of [WalletConnect's Universal Provider](https://www.npmjs.com/package/@walletconnect/universal-provider) to enable connecting to & signing with *WalletConnect*-compatible wallets, both on mobile and desktop.
+This integration is built on [@reown/appkit](https://www.npmjs.com/package/@reown/appkit) and provides a custom adapter
 
 ## Installation
 Install with your favorite package manager's equivalent of:

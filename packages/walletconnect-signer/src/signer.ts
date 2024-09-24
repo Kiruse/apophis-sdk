@@ -1,27 +1,38 @@
-import { connections, Cosmos, signals, SignData, type NetworkConfig, type Signer } from '@apophis-sdk/core';
-import { pubkey } from '@apophis-sdk/core/crypto/pubkey.js';
+import { connections, Cosmos, type NetworkConfig, Signer } from '@apophis-sdk/core';
+import { pubkey, PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
 import { Tx } from '@apophis-sdk/core/tx.js';
-import { fromBase64, toHex } from '@apophis-sdk/core/utils.js';
-import { type Window as KeplrWindow } from '@keplr-wallet/types';
-import { signal } from '@preact/signals-core';
-import { SignClient } from '@walletconnect/sign-client';
+import { fromBase64, fromHex, toBase64, toHex } from '@apophis-sdk/core/utils.js';
+import { SignClient as _SignClient } from '@walletconnect/sign-client';
+import { SessionTypes } from '@walletconnect/types';
 import { AuthInfo, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { type WalletConnectSignerConfig } from './config';
+import { WalletConnectBroadcastError, WalletConnectSignerError, WalletConnectSignerNotConnectedError } from './error';
 import LOGO_DATA_URL from './logo';
-import { promptURI } from './prompt';
+import { prompt } from './prompt';
+import { PeerAccount, SignClient, SignResponse } from './types.api';
+import { BroadcastMode } from '@apophis-sdk/core/types.sdk.js';
 
-export class WalletConnectSigner implements Signer {
-  #client: ReturnType<typeof SignClient.init>; // which is a Promise<SignClient> but they did the typing weird
+export class WalletConnectSigner extends Signer {
+  #client: Promise<SignClient>; // which is a Promise<SignClient> but they did the typing weird
+  #session: SessionTypes.Struct | undefined;
   readonly type = 'walletconnect';
+  readonly canAutoReconnect = false;
   readonly displayName = 'WalletConnect';
   readonly logoURL = LOGO_DATA_URL;
-  readonly available = signal(true);
-  readonly signData = signal<SignData | undefined>();
 
   constructor(public readonly config: WalletConnectSignerConfig) {
-    this.#client = SignClient.init({
+    super();
+    this.available.value = true;
+    this.#client = _SignClient.init({
       projectId: config.projectId,
       metadata: config.metadata,
+    }).then(client => {
+      client.on('session_update', (args) => {
+        if (args.topic !== this.#session?.topic) return;
+        this.#session.namespaces = args.params.namespaces;
+      });
+      // TODO: what happens when the session is deleted or expires?
+      return client;
     });
   }
 
@@ -32,44 +43,89 @@ export class WalletConnectSigner implements Signer {
   }
 
   async connect(networks: NetworkConfig[]) {
+    console.warn('CAVEAT: This version of the WalletConnect SignClient seems to be a buggy mess. I will keep an eye on new releases. Nonetheless, these errors should not prevent the integration from working.');
     const client = await this.#client;
-    const { uri, approval } = await client.connect({
-      requiredNamespaces: {
-        cosmos: {
-          methods: ['cosmos_getAccounts', 'cosmos_signDirect', 'cosmos_signAmino'],
-          events: [],
-          chains: networks.map((network) => 'cosmos:' + network.chainId),
+    const session = await prompt(networks, client, this.config);
+    this.#session = session;
+    await this._initSignData(networks);
+  }
+
+  async sign(network: NetworkConfig, tx: Tx): Promise<Tx> {
+    if (!this.#session) throw new WalletConnectSignerNotConnectedError();
+    const client = await this.#client;
+    const { topic } = this.#session;
+
+    const signData = this.getSignData(network)[0];
+    if (!signData) throw new WalletConnectSignerError('No sign data found');
+
+    const sdkTx = tx.sdkTx(network, this);
+    if (!sdkTx.authInfo || !sdkTx.body) throw new WalletConnectSignerError('Invalid transaction');
+
+    const { signature, signed } = await client.request<SignResponse>({
+      topic,
+      chainId: 'cosmos:' + network.chainId,
+      request: {
+        method: 'cosmos_signDirect',
+        params: {
+          signerAddress: signData.address,
+          signDoc: {
+            chainId: network.chainId,
+            accountNumber: signData.accountNumber.toString(),
+            authInfoBytes: this.#encode(AuthInfo.encode(sdkTx.authInfo).finish()),
+            bodyBytes: this.#encode(TxBody.encode(sdkTx.body).finish()),
+          },
         },
       },
     });
 
-    if (!uri) throw new Error('No WalletConnect URI');
-    console.log(uri);
-    await promptURI(uri, this.config);
+    const signedAuthInfo = AuthInfo.decode(this.#decode(signed.authInfoBytes));
+    const signedBody = TxBody.decode(this.#decode(signed.bodyBytes));
 
-    return approval()
-      .then(session => {
-        console.log(session);
-      });
+    tx.gas = signedAuthInfo.fee;
+    tx.memo = signedBody.memo;
+    tx.timeoutHeight = signedBody.timeoutHeight;
+    tx.setSignature(network, this, this.#decode(signature.signature));
+    return tx;
   }
 
-  sign(network: NetworkConfig, tx: Tx): Promise<Tx> {
-    throw new Error('Method not implemented.');
+  async broadcast(tx: Tx): Promise<string> {
+    const res = await Cosmos.txs(tx.network!)('POST', { tx_bytes: tx.bytes(), mode: BroadcastMode.BROADCAST_MODE_SYNC });
+    if (res.tx_response.code) throw new WalletConnectBroadcastError(res.tx_response);
+    return res.tx_response.txhash;
   }
 
-  broadcast(tx: Tx): Promise<string> {
-    throw new Error('Method not implemented.');
+  protected async getAccounts(network: NetworkConfig): Promise<{ address: string; publicKey: PublicKey; }[]> {
+    if (!this.#session) throw new WalletConnectSignerNotConnectedError();
+    const client = await this.#client;
+    const { topic } = this.#session;
+    const accounts = await client.request<PeerAccount[]>({
+      topic,
+      chainId: 'cosmos:' + network.chainId,
+      request: {
+        method: 'cosmos_getAccounts',
+        params: [],
+      },
+    });
+    return accounts.map(acc => {
+      if (!['secp256k1', 'ed25519'].includes(acc.algo))
+        throw new WalletConnectSignerError(`Unsupported algo: ${acc.algo}`);
+      const publicKey = acc.algo === 'secp256k1' ? pubkey.secp256k1(this.#decode(acc.pubkey)) : pubkey.ed25519(this.#decode(acc.pubkey));
+      return { address: acc.address, publicKey };
+    });
   }
 
-  addresses(networks?: NetworkConfig[]): string[] {
-    throw new Error('Method not implemented.');
-  }
+  #encode = (data: Uint8Array) => encode(data, this.config.encoding);
+  #decode = (data: string) => decode(data, this.config.encoding);
+}
 
-  address(network: NetworkConfig): string {
-    throw new Error('Method not implemented.');
-  }
+function encode(data: Uint8Array, encoding: WalletConnectSignerConfig['encoding'] = 'base64') {
+  if (encoding === 'base64') return toBase64(data);
+  if (encoding === 'hex') return toHex(data);
+  throw new WalletConnectSignerError(`Unsupported encoding: ${encoding}`);
+}
 
-  getSignData(network: NetworkConfig): SignData {
-    throw new Error('Method not implemented.');
-  }
+function decode(data: string, encoding: WalletConnectSignerConfig['encoding'] = 'base64') {
+  if (encoding === 'base64') return fromBase64(data);
+  if (encoding === 'hex') return fromHex(data);
+  throw new WalletConnectSignerError(`Unsupported encoding: ${encoding}`);
 }
