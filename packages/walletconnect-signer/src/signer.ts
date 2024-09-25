@@ -50,6 +50,16 @@ export class WalletConnectSigner extends Signer {
     await this._initSignData(networks);
   }
 
+  async disconnect() {
+    const client = await this.#client;
+    for (const key of client.pairing.keys) {
+      client.pairing.delete(key, { code: 6000, message: 'Disconnecting' });
+    }
+    for (const key of client.session.keys) {
+      client.session.delete(key, { code: 6000, message: 'Disconnecting' });
+    }
+  }
+
   async sign(network: NetworkConfig, tx: Tx): Promise<Tx> {
     if (!this.#session) throw new WalletConnectSignerNotConnectedError();
     const client = await this.#client;

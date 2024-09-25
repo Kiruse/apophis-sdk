@@ -1,6 +1,6 @@
 {
   "name": "@apophis-sdk/monorepo",
-  "version": "0.0.6-alpha.6",
+  "version": "0.0.6-alpha.8",
   "devDependencies": {
     "typescript": "^5.5.4"
   },

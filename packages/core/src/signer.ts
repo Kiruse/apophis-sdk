@@ -46,6 +46,8 @@ export abstract class Signer {
   abstract probe(): Promise<boolean>;
   /** Connect the signer for the given networks. */
   abstract connect(networks: NetworkConfig[]): Promise<void>;
+  /** Disconnect the signer. Some signers may need additional cleanup. */
+  async disconnect() {}
   /** Sign a transaction. */
   abstract sign(network: NetworkConfig, tx: Tx): Promise<Tx>;
   /** Broadcast a signed transaction. Returns the tx hash if successful. */

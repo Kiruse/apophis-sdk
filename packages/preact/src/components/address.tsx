@@ -47,7 +47,7 @@ export function Address({
 }
 
 export function UserAddress({
-  onLogout = () => { signals.signer.value = undefined },
+  onLogout = defaultLogout,
   ...props
 }: Readonly<Omit<AddressProps, 'children'>>) {
   return <Address
@@ -73,4 +73,11 @@ function getLabel(addr: string | undefined, placeholder: string, trimSize: numbe
 function trimAlias(alias: string, trimSize: number) {
   if (alias.length <= trimSize) return alias;
   return alias.slice(0, trimSize) + '…';
+}
+
+function defaultLogout() {
+  if (signals.signer.value) {
+    signals.signer.value.disconnect();
+    signals.signer.value = undefined;
+  }
 }
