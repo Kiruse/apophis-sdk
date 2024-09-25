@@ -1,4 +1,4 @@
-import { connections, Cosmos, type NetworkConfig, Signer } from '@apophis-sdk/core';
+import { Cosmos, type NetworkConfig, Signer } from '@apophis-sdk/core';
 import { pubkey, PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
 import { Tx } from '@apophis-sdk/core/tx.js';
 import { fromBase64, fromHex, toBase64, toHex } from '@apophis-sdk/core/utils.js';
@@ -16,7 +16,7 @@ export class WalletConnectSigner extends Signer {
   #client: Promise<SignClient>; // which is a Promise<SignClient> but they did the typing weird
   #session: SessionTypes.Struct | undefined;
   readonly type = 'walletconnect';
-  readonly canAutoReconnect = false;
+  readonly canAutoReconnect = true;
   readonly displayName = 'WalletConnect';
   readonly logoURL = LOGO_DATA_URL;
 
