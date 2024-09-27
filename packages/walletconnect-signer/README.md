@@ -43,7 +43,7 @@ function handleClick() {
   const network = signals.network.value;
   const signer = signals.signer.value; // agnostic of signer implementation
   const tx = signer.tx([
-    Any.encode(/* your message here */),
+    Any.encode(network, /* your message here */),
   ]);
 
   await tx.estimateGas(network, signer, true);

@@ -15,9 +15,10 @@ import { TendermintQuery } from './query.js';
 import * as signals from './signals.js';
 import type { SignData, Signer } from './signer.js';
 import type { NetworkConfig } from './types.js';
-import type { BasicRestApi, BlockEvent, BlockEventRaw, CosmosEvent, TransactionEvent, TransactionEventRaw, WS } from './types.sdk.js';
+import { BroadcastMode, TransactionResult, type BasicRestApi, type Block, type BlockEvent, type BlockEventRaw, type CosmosEvent, type TransactionEvent, type TransactionEventRaw, type TransactionResponse, type WS } from './types.sdk.js';
 import { Tx } from './tx.js';
 import { fromBase64, fromSdkPublicKey, toBase64, toHex } from './utils.js';
+import { BlockID } from 'cosmjs-types/tendermint/types/types.js';
 
 type Unsub = () => void;
 
@@ -191,8 +192,35 @@ export const Cosmos = new class {
   tx = (messages: Any[], opts?: Omit<TxBody, 'messages'> & { gas?: Fee }) => new Tx(messages, opts);
   coin = (amount: bigint | number, denom: string): Coin => Coin.fromPartial({ amount: amount.toString(), denom });
 
-  txs(network?: NetworkConfig) {
-    return this.rest(network).cosmos.tx.v1beta1.txs;
+  /** Broadcast a transaction to the network. If `async` is true, will not wait for inclusion in a
+   * block and return immediately, but it also will not throw upon rejection of the transaction.
+   *
+   * If a WebSocket connection has previously been opened (not yet necessarily established successfully)
+   * it will be used for the broadcast. Otherwise, the REST API will be used. The WebSocket method
+   * is generally preferable over the REST method as a connection to the RPC is already opened,
+   * resulting in lower latency and truthfulness of the blockchain state (when responding to block or
+   * transaction events).
+   *
+   * If you wish to force either a WebSocket or REST broadcast, you may do so with
+   * `Cosmos.ws(network).broadcast(...)` or `Cosmos.rest(network).cosmos.tx.v1beta1.txs('POST', ...)`,
+   * respectively.
+   *
+   * @returns the hash of the transaction, computed locally. The existence of the hash is no confirmation of the tx.
+   */
+  async broadcast(network: NetworkConfig, tx: Tx, async = false): Promise<string> {
+    // try to broadcast via ws if any has been opened yet. timeout 5s to avoid user waiting too long
+    // ws is generally preferable due to lower latency as the connection is already open
+    if (this.#sockets.get(network)?.connected) {
+      const ws = this.ws(network);
+      await ws.ready(5000);
+      return ws.broadcast(tx, async);
+    } else {
+      const { tx_response: { txhash } } = await this.rest(network).cosmos.tx.v1beta1.txs('POST', {
+        tx_bytes: tx.bytes(),
+        mode: async ? BroadcastMode.BROADCAST_MODE_ASYNC : BroadcastMode.BROADCAST_MODE_SYNC,
+      });
+      return txhash;
+    }
   }
 
   /** Helper function to decode the bytes of a Cosmos SDK transaction.
@@ -333,6 +361,19 @@ export class CosmosWebSocket {
     return this;
   }
 
+  /** Broadcast a transaction to the network. If `async` is true, will not wait for inclusion in a
+   * block and return immediately, but it also will not throw upon rejection of the transaction.
+   *
+   * @returns the hash of the transaction, computed locally. The existence of the hash is no confirmation of the tx.
+   */
+  async broadcast(tx: Tx, async = false): Promise<string> {
+    const method = async ? 'broadcast_tx_async' : 'broadcast_tx_sync';
+    const result = await this.send<TransactionResult>(method, [tx.bytes()]);
+    if (result.code)
+      throw new Error(`Failed to broadcast transaction: ${result.code} (${result.codespace}): ${result.log}`);
+    return tx.hash;
+  }
+
   onBlock(callback: (block: BlockEvent) => void) {
     return this.#onBlock(({ args: block }) => callback(block));
   }
@@ -370,11 +411,57 @@ export class CosmosWebSocket {
     }
   }
 
+  /** Get a block by height. If height is not specified, the latest block is returned. */
+  getBlock(height?: bigint) {
+    const id = this.#nextSubId++;
+    this.socket.send({
+      jsonrpc: '2.0',
+      method: 'block',
+      params: { height },
+      id,
+    });
+    return new Promise<{ block: Block, block_id: BlockID }>((resolve, reject) => {
+      this.socket.onMessage.oncePred(({ args: msg }) => {
+        const result = unmarshal(JSON.parse(msg)) as RPCResult<{ block: Block, block_id: BlockID }>;
+        if (result.id === id) {
+          if (result.result) {
+            resolve(result.result);
+          } else {
+            reject(result.error);
+          }
+        }
+      }, ({ args }) => JSON.parse(args).id === id);
+    });
+  }
+
+  /** Get a transaction by hash. Optionally, you may request a merkle tree proof of the transaction's inclusion in the block (default: true). */
+  getTx(hash: string, prove = true) {
+    const id = this.#nextSubId++;
+    this.socket.send({
+      jsonrpc: '2.0',
+      method: 'get_tx',
+      params: { hash, prove },
+      id,
+    });
+    return new Promise<TransactionResponse>((resolve, reject) => {
+      this.socket.onMessage.oncePred(({ args: msg }) => {
+        const result = unmarshal(JSON.parse(msg)) as RPCResult<TransactionResponse>;
+        if (result.id === id) {
+          if (result.result) {
+            resolve(result.result);
+          } else {
+            reject(result.error);
+          }
+        }
+      }, ({ args }) => JSON.parse(args).id === id);
+    });
+  }
+
   /** Method corresponding to the `tx_search` JSONRPC method. It returns an async-iterable cursor for convenience. */
   searchTxs(query: TendermintQuery, { pageSize = 100, page: pageOffset = 1, order = 'asc', prove = true }: WS.SearchTxsParams = {}) {
     const q = query.toString();
     const currentIndex = () => BigInt(page) * BigInt(pageSize) + BigInt(cursor);
-    const fetch = () => this.send<WS.SearchTxsResponse>('tx_search', q, prove, page.toString(), pageSize.toString(), order);
+    const fetch = () => this.send<WS.SearchTxsResponse>('tx_search', [q, prove, page.toString(), pageSize.toString(), order]);
     const fetchNext = () => currentIndex() < total && (page++, promise = fetch(), true);
 
     let page = pageOffset, cursor = 0, total: bigint, promise = fetch();
@@ -408,7 +495,8 @@ export class CosmosWebSocket {
    * around the underlying jsonrpc protocol and returns a promise that resolves with the result of
    * the request after unmarshalling it.
    */
-  send<T = unknown>(method: string, ...params: any[]) {
+  send<T = unknown>(method: string, params?: any) {
+    params = params && marshal(params);
     return new Promise<T>((resolve, reject) => {
       const id = this.#nextSubId++;
       this.socket.send({
@@ -438,22 +526,26 @@ export class CosmosWebSocket {
   }
 
   #sendHeartbeat = () => {
-    if (!this.socket.connected) return;
-    const id = this.#nextSubId++;
+    if (!this.connected) return;
     const timeout = setTimeout(() => {
-      if (!this.socket.connected) return;
+      if (!this.connected) return;
       console.warn('Heartbeat timed out, reconnecting...');
       this.reconnect();
     }, 30000);
-    this.socket.send({
-      jsonrpc: '2.0',
-      method: 'health',
-      id,
-    });
-    this.socket.onMessage.oncePred(({ args: msg }) => {
+    this.send('health').then(() => {
       clearTimeout(timeout);
-    }, ({ args }) => JSON.parse(args).id === id);
+    }).catch(err => {
+      if (!this.connected) return;
+      console.error('Heartbeat error:', err);
+      this.reconnect();
+    });
   }
+
+  ready(timeout?: number) {
+    return this.socket.ready(timeout);
+  }
+
+  get connected() { return this.socket.connected }
 
   get endpoint() {
     const ep = connections.ws(this.network);

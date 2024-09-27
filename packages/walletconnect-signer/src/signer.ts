@@ -99,9 +99,7 @@ export class WalletConnectSigner extends Signer {
   }
 
   async broadcast(tx: Tx): Promise<string> {
-    const res = await Cosmos.txs(tx.network!)('POST', { tx_bytes: tx.bytes(), mode: BroadcastMode.BROADCAST_MODE_SYNC });
-    if (res.tx_response.code) throw new WalletConnectBroadcastError(res.tx_response);
-    return res.tx_response.txhash;
+    return await Cosmos.broadcast(tx.network!, tx);
   }
 
   protected async getAccounts(network: NetworkConfig): Promise<{ address: string; publicKey: PublicKey; }[]> {

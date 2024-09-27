@@ -19,7 +19,7 @@ I will build more integrations as time permits.
 ## Usage
 ```typescript
 import { Any, type Asset, Cosmos, type NetworkConfig, signers, signals } from '@apophis-sdk/core';
-import { SendMessage } from '@apophis-sdk/core/msg/bank';
+import { BankSendMsg } from '@apophis-sdk/core/msg/bank';
 import { KeplrDirect } from '@apophis-sdk/keplr-signer';
 import { UserAddress, WalletModal } from '@apophis-sdk/preact';
 import { render } from 'preact';
@@ -70,11 +70,11 @@ function handleClick() {
   // However, some messages are generic enough that you can use them across many chains, or can be
   // translated easily using middleware.
   const tx = Cosmos.tx([
-    Any.encode(new SendMessage(
+    new BankSendMsg(
       'neutron12345...',
       'neutron12345...',
       [Cosmos.coin(1n, 'untrn')]
-    )),
+    ).toAny(network),
   ]);
 
   // You can either `estimateGas` to ask the network for an estimate, or `computeGas` to compute the

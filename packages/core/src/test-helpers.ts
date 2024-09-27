@@ -19,3 +19,7 @@ export const network: NetworkConfig = {
     avgPrice: 0.0053,
   }],
 };
+
+export const PION_REST_URL = 'https://rest-falcron.pion-1.ntrn.tech';
+export const PION_RPC_URL = 'https://rpc-falcron.pion-1.ntrn.tech';
+export const PION_WS_URL = 'wss://rpc-falcron.pion-1.ntrn.tech/websocket';

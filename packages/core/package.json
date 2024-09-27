@@ -1,6 +1,6 @@
 {
   "name": "@apophis-sdk/core",
-  "version": "0.0.6",
+  "version": "0.0.7-alpha.1",
   "author": "Kiruse",
   "repository": "https://github.com/kiruse/apophis-sdk.git",
   "type": "module",
@@ -21,7 +21,7 @@
     "@chain-registry/client": "^1.48.64",
     "@kiruse/decimal": "^1.0.5-fix.1",
     "@kiruse/marshal": "^0.2.0-rc.1",
-    "@kiruse/restful": "^0.2.3-fix.2",
+    "@kiruse/restful": "^0.2.3-fix.3",
     "@kiruse/typed-events": "^1.1.0",
     "@kristiandupont/recase": "^1.3.1",
     "@noble/hashes": "^1.4.0",

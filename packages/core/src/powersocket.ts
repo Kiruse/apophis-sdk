@@ -88,7 +88,7 @@ export class PowerSocket<T = string> {
   }
 
   send(data: any) {
-    if (!this.#ws) throw new PowerSocketError('WebSocket not connected');
+    if (!this.#ws || !this.#connected) throw new PowerSocketError('WebSocket not connected');
     this.#ws.send(JSON.stringify(this.marshal(data)));
     return this;
   }

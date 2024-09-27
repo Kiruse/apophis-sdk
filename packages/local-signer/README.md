@@ -17,9 +17,9 @@ import { fromHex } from '@apophis-sdk/core/utils.js';
 const privateKey = fromHex('0x1234567890123456789012345678901234567890123456789012345678901234');
 const account = new Account(privateKey);
 
-const tx = LocalSigner.tx({
-  // ... tx contents
-});
+const tx = Cosmos.tx([
+  Any.encode(network, /* your message here */),
+]);
 
 await account.sign(tx);
 tx.status === 'signed';
