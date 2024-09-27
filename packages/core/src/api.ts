@@ -19,6 +19,7 @@ import { BroadcastMode, TransactionResult, type BasicRestApi, type Block, type B
 import { Tx } from './tx.js';
 import { fromBase64, fromSdkPublicKey, toBase64, toHex } from './utils.js';
 import { BlockID } from 'cosmjs-types/tendermint/types/types.js';
+import { Decimal } from '@kiruse/decimal';
 
 type Unsub = () => void;
 
@@ -223,6 +224,37 @@ export const Cosmos = new class {
     }
   }
 
+  /** Attempts to find the last block before the given timestamp.
+   *
+   * @param network
+   * @param timestamp
+   * @param startHeight where to begin searching from. Defaults to current height.
+   * @param blockSpeed is the average number of seconds between blocks. Although it is network-dependent,
+   * it defaults to 3 seconds for many chains. The exact speed doesn't matter as it is just a
+   * heuristic to estimate number of blocks between two timestamps.
+   * @param connectionTimeout is used when first establishing a connection to the full node and defaults to 10s.
+   */
+  async findBlockAt(network: NetworkConfig, timestamp: Date, startHeight?: bigint, blockSpeed = 3, connectionTimeout = 10000) {
+    if (this.#sockets.get(network)?.connected) {
+      const ws = this.ws(network);
+      await ws.ready(connectionTimeout);
+      if (timestamp >= new Date()) return (await ws.getBlock()).block;
+
+      let { block: lastBlock } = await ws.getBlock(startHeight);
+      let { block } = await ws.getBlock(guessNextHeight(lastBlock, timestamp, blockSpeed));
+      while (!foundTargetBlock(block, lastBlock, timestamp)) {
+        // blockSpeed has an anti-proportional effect on the step size, so we increase it with every
+        // iteration to prevent overshooting
+        blockSpeed *= 1.1;
+        lastBlock = block;
+        ({ block } = await ws.getBlock(guessNextHeight(block, timestamp, blockSpeed)));
+      }
+      return block.header.height < lastBlock.header.height ? block : lastBlock;
+    } else {
+      throw new Error('findBlockBefore by REST is not yet implemented');
+    }
+  }
+
   /** Helper function to decode the bytes of a Cosmos SDK transaction.
    *
    * **Note** that the resulting type is not the same as this `Tx` class of this library, but instead
@@ -413,25 +445,7 @@ export class CosmosWebSocket {
 
   /** Get a block by height. If height is not specified, the latest block is returned. */
   getBlock(height?: bigint) {
-    const id = this.#nextSubId++;
-    this.socket.send({
-      jsonrpc: '2.0',
-      method: 'block',
-      params: { height },
-      id,
-    });
-    return new Promise<{ block: Block, block_id: BlockID }>((resolve, reject) => {
-      this.socket.onMessage.oncePred(({ args: msg }) => {
-        const result = unmarshal(JSON.parse(msg)) as RPCResult<{ block: Block, block_id: BlockID }>;
-        if (result.id === id) {
-          if (result.result) {
-            resolve(result.result);
-          } else {
-            reject(result.error);
-          }
-        }
-      }, ({ args }) => JSON.parse(args).id === id);
-    });
+    return this.send<{ block: Block, block_id: BlockID }>('block', { height });
   }
 
   /** Get a transaction by hash. Optionally, you may request a merkle tree proof of the transaction's inclusion in the block (default: true). */
@@ -586,4 +600,24 @@ function setDiff<T>(setA: Set<T>, setB: Set<T>) {
     return setA.difference(setB);
   }
   return new Set(Array.from(setA).filter(x => !setB.has(x)));
+}
+
+/** Guess the next block height based on the given block and the target timestamp. This method is
+ * intended to be used to search for a specific block at the given `timestamp` with a divide-and-conquer
+ * approach.
+ *
+ * @param lastBlock used for the reference time & height.
+ * @param timestamp is the target timestamp we'd like to find the closest block for.
+ * @param blockSpeed is the average number of seconds between blocks. The exact speed doesn't matter as it is just a heuristic.
+ * @returns the height of the next block.
+ */
+function guessNextHeight(lastBlock: Block, timestamp: Date, blockSpeed: number): bigint {
+  const deltaTime = timestamp.getTime() - lastBlock.header.time.getTime();
+  const blocksToAdd = Math.floor(deltaTime / (blockSpeed * 1000));
+  return lastBlock.header.height + BigInt(blocksToAdd);
+}
+
+function foundTargetBlock(blockA: Block, blockB: Block, timestamp: Date) {
+  return (blockA.header.time < timestamp && timestamp < blockB.header.time) &&
+    ((blockA.header.height + 1n) === blockB.header.height);
 }
