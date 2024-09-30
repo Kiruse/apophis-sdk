@@ -41,15 +41,15 @@ export class TendermintQuery {
     return this._query.join(' AND ');
   }
 
-  static AND(lhs: TendermintQuery, rhs: TendermintQuery) {
+  static AND(...subqueries: TendermintQuery[]) {
     const q = new TendermintQuery();
-    q._query.push(`(${lhs}) AND (${rhs})`);
+    q._query.push(`(${subqueries.map(s => s.toString()).join(') AND (')})`);
     return q;
   }
 
-  static OR(lhs: TendermintQuery, rhs: TendermintQuery) {
+  static OR(...subqueries: TendermintQuery[]) {
     const q = new TendermintQuery();
-    q._query.push(`(${lhs}) OR (${rhs})`);
+    q._query.push(`(${subqueries.map(s => s.toString()).join(') OR (')})`);
     return q;
   }
 }
