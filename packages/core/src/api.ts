@@ -306,7 +306,7 @@ export class CosmosWebSocket {
   #subs: Record<number, TxSubscriptionMetadata> = {};
   #nextSubId = 2; // 1 is reserved for block subscription
   #onBlock = Event<BlockEvent>();
-  #heartbeat: ReturnType<typeof setInterval> | undefined;
+  #heartbeat: ReturnType<typeof setTimeout> | undefined;
 
   constructor(public readonly network: NetworkConfig) {
     this.socket = new PowerSocket<string>(() => this.endpoint);
@@ -371,7 +371,11 @@ export class CosmosWebSocket {
           );
         }
       });
-      this.#heartbeat = setInterval(this.#sendHeartbeat, 30000);
+      this.#heartbeat = setTimeout(this.#sendHeartbeat, 35000);
+    });
+    this.socket.onDisconnect(() => {
+      clearTimeout(this.#heartbeat!);
+      this.#heartbeat = undefined;
     });
 
     const clearHeartbeat = () => {
@@ -479,8 +483,13 @@ export class CosmosWebSocket {
     const fetchNext = () => currentIndex() < total && (page++, promise = fetch(), true);
 
     let page = pageOffset, cursor = 0, total: bigint, promise = fetch();
+    promise.then(({ total_count }) => {
+      total = BigInt(total_count);
+    });
 
     return new class {
+      ready = () => promise.then(()=>{});
+
       async *[Symbol.asyncIterator]() {
         page = pageOffset;
         do {
@@ -540,6 +549,7 @@ export class CosmosWebSocket {
   }
 
   #sendHeartbeat = () => {
+    this.#heartbeat = undefined;
     if (!this.connected) return;
     const timeout = setTimeout(() => {
       if (!this.connected) return;
@@ -548,6 +558,7 @@ export class CosmosWebSocket {
     }, 30000);
     this.send('health').then(() => {
       clearTimeout(timeout);
+      this.#heartbeat = setTimeout(this.#sendHeartbeat, 35000);
     }).catch(err => {
       if (!this.connected) return;
       console.error('Heartbeat error:', err);
