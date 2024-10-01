@@ -1,3 +1,7 @@
+/** Implementation of Tendermint transaction query.
+ *
+ * @see https://docs.tendermint.com/v0.34/rpc/#/Websocket/subscribe
+ */
 export class TendermintQuery {
   private _query: string[] = [];
 
@@ -39,18 +43,6 @@ export class TendermintQuery {
 
   toString() {
     return this._query.join(' AND ');
-  }
-
-  static AND(...subqueries: TendermintQuery[]) {
-    const q = new TendermintQuery();
-    q._query.push(`(${subqueries.map(s => s.toString()).join(') AND (')})`);
-    return q;
-  }
-
-  static OR(...subqueries: TendermintQuery[]) {
-    const q = new TendermintQuery();
-    q._query.push(`(${subqueries.map(s => s.toString()).join(') OR (')})`);
-    return q;
   }
 }
 
