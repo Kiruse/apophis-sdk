@@ -7,7 +7,6 @@ import { Coin } from 'cosmjs-types/cosmos/base/v1beta1/coin.js';
 import { Fee, Tx as SdkTx, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { addresses } from './address.js';
 import { connections } from './connection.js';
-import { PublicKey } from './crypto/pubkey.js';
 import { Any } from './encoding/protobuf/any.js';
 import { BytesMarshalUnit } from './marshal.js';
 import { PowerSocket } from './powersocket.js';
@@ -19,7 +18,6 @@ import { BroadcastMode, TransactionResult, type BasicRestApi, type Block, type B
 import { Tx } from './tx.js';
 import { fromBase64, fromSdkPublicKey, toBase64, toHex } from './utils.js';
 import { BlockID } from 'cosmjs-types/tendermint/types/types.js';
-import { Decimal } from '@kiruse/decimal';
 
 type Unsub = () => void;
 
@@ -478,14 +476,16 @@ export class CosmosWebSocket {
   /** Method corresponding to the `tx_search` JSONRPC method. It returns an async-iterable cursor for convenience. */
   searchTxs(query: TendermintQuery, { pageSize = 100, page: pageOffset = 1, order = 'asc', prove = true }: WS.SearchTxsParams = {}) {
     const q = query.toString();
-    const currentIndex = () => BigInt(page) * BigInt(pageSize) + BigInt(cursor);
-    const fetch = () => this.send<WS.SearchTxsResponse>('tx_search', [q, prove, page.toString(), pageSize.toString(), order]);
-    const fetchNext = () => currentIndex() < total && (page++, promise = fetch(), true);
+    const pageIndex = (page: number) => BigInt(page - 1) * BigInt(pageSize);
+    const currentIndex = () => pageIndex(page) + BigInt(cursor);
+    const fetch = async () => {
+      const response = await this.send<WS.SearchTxsResponse>('tx_search', [q, prove, page.toString(), pageSize.toString(), order]);
+      total = BigInt(response.total_count);
+      return response.txs;
+    };
+    const fetchNext = () => pageIndex(page + 1) < total && (page++, promise = fetch(), true);
 
     let page = pageOffset, cursor = 0, total: bigint, promise = fetch();
-    promise.then(({ total_count }) => {
-      total = BigInt(total_count);
-    });
 
     return new class {
       ready = () => promise.then(()=>{});
@@ -494,10 +494,9 @@ export class CosmosWebSocket {
         page = pageOffset;
         do {
           let response = await promise;
-          total = BigInt(response.total_count);
           cursor = 0;
-          while (cursor < response.txs.length) {
-            yield response.txs[cursor++];
+          while (cursor < response.length) {
+            yield response[cursor++];
           }
         } while (fetchNext());
       }
@@ -508,8 +507,22 @@ export class CosmosWebSocket {
         return result;
       }
 
+      /** Generator that yields all pages of transactions. */
+      async *pages() {
+        if (typeof total === 'undefined') await this.ready();
+        if (currentIndex() >= total) return;
+        do {
+          yield await promise;
+        } while (fetchNext());
+      }
+
+      async currentPage() {
+        return await promise;
+      }
+
       get total() { return total }
       get page() { return page }
+      set page(value) { page = value }
       get index() { return currentIndex() }
     }
   }
