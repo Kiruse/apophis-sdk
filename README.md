@@ -15,6 +15,9 @@ The following packages exist:
 - `@apophis-sdk/core`
 - `@apophis-sdk/preact`
 - `@apophis-sdk/keplr-signer`
+- `@apophis-sdk/leap-signer`
+- `@apophis-sdk/local-signer`
+- `@apophis-sdk/walletconnect-signer`
 
 Further integrations are planned.
 
