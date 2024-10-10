@@ -1,5 +1,5 @@
-import { SyncEvent } from '@kiruse/typed-events';
 import { NetworkConfig } from './types';
+import { mw } from './middleware';
 
 export interface Connection {
   rpc?: string;
@@ -10,13 +10,9 @@ export interface Connection {
 const store = new Map<NetworkConfig, Connection>();
 
 export const connections = new class {
-  readonly onCreate = SyncEvent<NetworkConfig, Connection>();
-  readonly onRead = SyncEvent<{ which: 'rpc' | 'rest' | 'ws', network: NetworkConfig, connection: Connection }, string>();
-
   get(network: NetworkConfig): Connection {
     if (!store.has(network)) {
-      const event = this.onCreate.emit(network, {});
-      store.set(network, event.result!);
+      store.set(network, {});
     }
     return store.get(network)!;
   }
@@ -36,21 +32,22 @@ export const connections = new class {
     return this;
   }
 
-  rest(network: NetworkConfig): string {
-    const base = this.get(network);
-    const event = this.onRead.emit({ which: 'rest', network, connection: base }, base.rest ?? `https://rest.cosmos.directory/${network.name}`);
-    return event.result!;
-  }
-
-  rpc(network: NetworkConfig): string {
-    const base = this.get(network);
-    const event = this.onRead.emit({ which: 'rpc', network, connection: base }, base.rpc ?? `https://rpc.cosmos.directory/${network.name}`);
-    return event.result!;
-  }
-
-  ws(network: NetworkConfig): string {
-    const base = this.get(network);
-    const event = this.onRead.emit({ which: 'ws', network, connection: base }, base.ws ?? `wss://rpc.cosmos.directory/${network.name}/websocket`);
-    return event.result!;
-  }
+  rest = (network: NetworkConfig) => mw('connection', 'endpoint').inv().fifo(network, 'rest');
+  rpc = (network: NetworkConfig) => mw('connection', 'endpoint').inv().fifo(network, 'rpc');
+  ws = (network: NetworkConfig) => mw('connection', 'endpoint').inv().fifo(network, 'ws');
 }
+
+mw.use({
+  connection: {
+    endpoint(network: NetworkConfig, which: 'rest' | 'rpc' | 'ws'): string[] | undefined {
+      if (store.has(network)) return [store.get(network)![which]!];
+      switch (which) {
+        case 'rest': return network.endpoints?.rest ?? [`https://rest.cosmos.directory/${network.name}`];
+        case 'rpc': return network.endpoints?.rpc ?? [`https://rpc.cosmos.directory/${network.name}`];
+        case 'ws':
+          if (network.endpoints?.ws?.length) return network.endpoints.ws;
+          throw new Error('cosmos.directory does not support WebSocket endpoints');
+      }
+    },
+  },
+});

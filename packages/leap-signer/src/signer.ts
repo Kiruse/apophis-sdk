@@ -35,8 +35,8 @@ export abstract class LeapSignerBase extends Signer {
   async connect(networks: NetworkConfig[]) {
     if (!window.leap) throw new Error('Keplr not available');
     if (!networks.length) throw new Error('No networks provided');
-    await Promise.all(networks.map((network) => window.leap?.experimentalSuggestChain(toChainSuggestion(network))));
-    await window.leap.enable(networks.map((network) => network.chainId));
+    await Promise.all(networks.map(network => window.leap?.experimentalSuggestChain(toChainSuggestion(network))));
+    await window.leap.enable(networks.map(network => network.chainId));
     await this.loadSignData(networks);
     Cosmos.watchSigner(this);
   }
@@ -134,8 +134,8 @@ function toChainSuggestion(network: NetworkConfig): Parameters<Required<Window>[
   return {
     chainId: network.chainId,
     chainName: network.prettyName,
-    rpc: connections.rpc(network)!,
-    rest: connections.rest(network)!,
+    rpc: network.name.match(/testnet$/) ? connections.rpc(network)[0] : `https://rpc.cosmos.directory/${network.name}`,
+    rest: network.name.match(/testnet$/) ? connections.rest(network)[0] : `https://rest.cosmos.directory/${network.name}`,
     bip44: {
       coinType: network.slip44!,
     },

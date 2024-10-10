@@ -1,11 +1,14 @@
-import { PublicKey } from './crypto/pubkey';
-import { type Any } from './encoding/protobuf/any';
-import { type NetworkConfig } from './networks';
+import type { CosmWasmApi } from './cosmwasm.js';
+import { PublicKey } from './crypto/pubkey.js';
+import { type Any } from './encoding/protobuf/any.js';
+import { type NetworkConfig } from './networks.js';
 
 const middlewares: Middleware[] = [];
 
 export interface Middleware {
   addresses: MiddlewareAddresses;
+  beta: MiddlewareBeta;
+  connection: MiddlewareConnection;
   protobuf: MiddlewareProtobuf;
 }
 
@@ -13,6 +16,25 @@ export interface MiddlewareAddresses {
   alias(address: string): string | undefined;
   resolve(alias: string): string | undefined;
   compute(prefixOrNetwork: NetworkConfig | string, publicKey: PublicKey): string;
+}
+
+export interface MiddlewareBeta {
+  wasm: MiddlewareBetaWasm;
+}
+
+export interface MiddlewareConnection {
+  endpoint(network: NetworkConfig, which: 'rest' | 'rpc' | 'ws'): string[];
+}
+
+export interface MiddlewareBetaWasm {
+  /** Whether the given network supports CosmWasm smart contracts at all. Currently, the default
+   * implementation simply assumes it does.
+   */
+  enabled(network: NetworkConfig): boolean;
+  /** `notifySync` middleware method for the creation of a new `CosmWasmApi` instance for a
+   * `NetworkConfig`. Can be used to alter the instance before it is used.
+   */
+  created(instance: CosmWasmApi): void;
 }
 
 export interface MiddlewareProtobuf {
@@ -42,6 +64,7 @@ type FifoArgs<K extends string[]> = Lens<Middleware, K> extends (...args: infer 
 type FifoResult<K extends string[]> = Lens<Middleware, K> extends (...args: any[]) => infer R ? R : never;
 
 type NotifyArgs<K extends string[]> = Lens<Middleware, K> extends (...args: infer A) => void | Promise<void> ? A : never;
+type NotifySyncArgs<K extends string[]> = Lens<Middleware, K> extends (...args: infer A) => void ? A : never;
 
 export function mw<KP extends string[], KN extends string & keyof Lens<Middleware, KP>>(..._keypath: KP | [...KP, KN]) {
   return new MiddlewarePipeline<[...KP, KN]>(_keypath, forwardIterator);
@@ -87,6 +110,18 @@ class MiddlewarePipeline<KP extends string[]> {
     await Promise.all(mws.map(async cb => {
       await cb(...args).catch(console.error);
     }));
+  }
+
+  /** Notify all middlewares with the given arguments. Middlewares must be synchronous. Uncaught errors are logged to console. */
+  notifySync(...args: NotifySyncArgs<KP>): void {
+    const mws = [...this.iterator(this.#extract)];
+    for (const cb of mws) {
+      try {
+        cb(...args);
+      } catch (e) {
+        console.error('Error during middleware notify (sync):', e);
+      }
+    }
   }
 
   #extract = (mw: MiddlewareImpl) => this.kp.reduce((acc: any, key) => acc?.[key], mw) as MiddlewareImpl;

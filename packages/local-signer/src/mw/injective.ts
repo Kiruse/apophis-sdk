@@ -1,7 +1,7 @@
 import { Any, type NetworkConfig } from '@apophis-sdk/core';
 import { pubkey, PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
 import { mw } from "@apophis-sdk/core/middleware.js";
-import { bech32 } from 'bech32';
+import { bech32 } from '@scure/base';
 import * as secp256k1 from '@noble/secp256k1';
 import { keccak_256 as keccak256 } from '@noble/hashes/sha3';
 

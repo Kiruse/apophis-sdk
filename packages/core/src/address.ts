@@ -1,6 +1,6 @@
 import { ripemd160 } from '@noble/hashes/ripemd160';
 import { sha256 } from '@noble/hashes/sha256';
-import { bech32 } from 'bech32';
+import { bech32 } from '@scure/base';
 import { NetworkConfig } from './networks';
 import { type MiddlewareAddresses, type MiddlewareImpl, mw } from './middleware';
 import { DeepPartial } from 'cosmjs-types';
@@ -84,7 +84,7 @@ export const LocalStorageAddressBook = new class implements MiddlewareImpl {
 export function trimAddress(address: string, trimSize: number) {
   let prefix = '';
   try {
-    prefix = bech32.decode(address).prefix + '1';
+    prefix = bech32.decode(address as any).prefix + '1';
     address = address.slice(prefix.length);
   } catch {}
 

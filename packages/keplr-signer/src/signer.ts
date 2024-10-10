@@ -135,8 +135,8 @@ function toChainSuggestion(network: NetworkConfig): Parameters<Required<KeplrWin
   return {
     chainId: network.chainId,
     chainName: network.prettyName,
-    rpc: connections.rpc(network)!,
-    rest: connections.rest(network)!,
+    rpc: network.name.match(/testnet|devnet/) ? connections.rpc(network)[0] : `https://rpc.cosmos.directory/${network.name}`,
+    rest: network.name.match(/testnet|devnet/) ? connections.rest(network)[0] : `https://rest.cosmos.directory/${network.name}`,
     bip44: {
       coinType: network.slip44!,
     },

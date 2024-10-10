@@ -1,15 +1,16 @@
 import { Signal } from '@preact/signals-core';
+import { base64 } from '@scure/base';
 import { PubKey as SdkEd25519PublicKey } from 'cosmjs-types/cosmos/crypto/ed25519/keys';
 import { PubKey as SdkSecp256k1PublicKey } from 'cosmjs-types/cosmos/crypto/secp256k1/keys';
 import { pubkey, PublicKey } from './crypto/pubkey';
 import { type Anylike } from './encoding/protobuf/any';
 
-export function fromBase64(base64: string): Uint8Array {
-  return Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+export function fromBase64(data: string): Uint8Array {
+  return base64.decode(data);
 }
 
 export function toBase64(bytes: Uint8Array): string {
-  return btoa(String.fromCharCode(...bytes));
+  return base64.encode(bytes);
 }
 
 export function fromHex(hex: string): Uint8Array {
@@ -51,3 +52,5 @@ export function fromSdkPublicKey(publicKey: Anylike): PublicKey {
       throw new Error('Unsupported pubkey type');
   }
 }
+
+export const getRandomItem = <T>(items: T[]): T => items[Math.floor(Math.random() * items.length)];

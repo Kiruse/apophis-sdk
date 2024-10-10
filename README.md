@@ -87,38 +87,9 @@ The Cosmos is multichain. Thus, Apophis SDK is designed to be multichain. When w
 
 `@apophis-sdk/core/connections.js` exposes the `connections` object, which you can use to get & set RPC, REST & WebSocket endpoints for a given `NetworkConfig`. Default endpoints rely on [cosmos.directory](https://cosmos.directory).
 
-`connections` has two events, `onCreate` & `onRead`, which you can use to alter the behavior. For example:
+Connections use the `connections` middleware, with `connections.endpoint(network, which)` in fifo-reverse order used to determine the endpoint URL. The default behavior refers to [cosmos.directory](https://cosmos.directory) for REST & RPC endpoints, but fails for WebSocket endpoints. Before the default behavior is used, it checks if a custom endpoint was configured using any of the `connections.set*` methods, or if the `NetworkConfig` object itself has `endpoints` defined.
 
-```typescript
-// override neutron-testnet with new default endpoints
-connections.onCreate((event, network) => {
-  if (network.name === 'neutron-testnet') {
-    // this is a `Connection` object
-    event.result!.rest ??= 'https://rest-falcron.pion-1.ntrn.tech';
-    event.result!.rpc ??= 'https://rpc-falcron.pion-1.ntrn.tech';
-    event.result!.ws ??= 'wss://ws-falcron.pion-1.ntrn.tech/websocket';
-  }
-});
-
-const localNetworks = ['neutron', 'neutron-testnet', 'cosmoshub', 'cosmoshub-testnet'];
-
-connections.onRead((event, { which, network, config }) => {
-  // override locally hosted networks with localhost
-  if (localNetworks.includes(network.name)) {
-    switch (which) {
-      case 'rest':
-        event.result = 'http://localhost:1337';
-        break;
-      case 'rpc':
-        event.result = 'http://localhost:26657';
-        break;
-      case 'ws':
-        event.result = 'ws://localhost:26657/websocket';
-        break;
-    }
-  }
-});
-```
+The `@apophis-sdk/core/networks.js` module also exposes the `networkFromRegistry` method which loads chain metadata & assets from the [Chain Registry](https://github.com/cosmos/chain-registry) and populates a `NetworkConfig` object, including default endpoints. Note that testnet endpoints are not necessarily reliable, so you may choose to configure custom endpoints anyways.
 
 ## API
 Apophis SDK is designed to be a one-stop shop for all your Cosmos Dapp & tooling needs. The `Cosmos` object is your swiss army knife of blockchain interaction. The object itself exposes various general purpose methods such as `findBlockAt`, `tx`, `coin`, `getTxHash`, and `decodeTx`. But it also exposes the underlying REST & WebSocket API clients which you can use to access the full functionality of the blockchain, albeit partially undocumented.
@@ -146,28 +117,54 @@ await Cosmos.rest(network).cosmos.tx.v1beta1.simulate('POST', { tx_bytes: tx.sig
 
 However, before using the REST API, you may want to check the other available methods on the `Cosmos` object first.
 
-## Transactions
-We distinguish between two types of transaction types: `CosmosTransaction`, which is a finalized transaction directly corresponding to the Cosmos SDK's `Tx` type, and `Tx`, which is Apophis SDK's abstraction interface to facilitate building, signing & broadcasting transactions.
+### CosmWasm API
+Similar to the `Cosmos` object, the `CosmWasm` object provides a swiss army knife for interacting with the CosmWasm module of a chain. Due to the modular nature of the Cosmos SDK, not every Cosmos chain has CosmWasm support, and some even support other runtimes such as EVM. Thus, you must deliberately import it from `@apophis-sdk/core/cosmwasm.js`, which allows treeshaking it out of your bundle if you don't need it.
 
 ```typescript
-import { Cosmos } from '@apophis-sdk/core';
+import { networkFromRegistry } from '@apophis-sdk/core';
+import { CosmWasm, toBinary } from '@apophis-sdk/core/cosmwasm.js';
 import { LocalSigner } from '@apophis-sdk/local-signer';
-import { network } from '@apophis-sdk/core/test-helpers.js';
 
+const network = await networkFromRegistry('neutrontestnet');
 const signer = LocalSigner.fromMnemonic('...');
+const code = Uint8Array.from(await fs.readFile('./artifacts/contract.wasm'));
 
-const tx = new Cosmos.tx([
-  new BankSendMsg(/* ... */).toAny(network),
-]);
+// store the smart contract code on-chain
+const codeId = await CosmWasm.store(network, signer, code);
 
-await tx.estimateGas(network, signer, true);
-await signer.sign(network, tx);
-await tx.broadcast();
+// instantiate the smart contract
+const contractAddress = await CosmWasm.instantiate({
+  network,
+  signer,
+  codeId,
+  label: '...',
+  admin: 'neutron1...', // defaults to the signer's address
+  msg: toBinary({
+    // ...  your instantiate message JSON here
+    // note that `toBinary` assumes that your contract
+  }),
+  // optional, defaults to empty array (no native coins sent along)
+  // note that CW20 tokens are not supported here
+  funds: [Cosmos.coin(1n, 'untrn')],
+});
+
+// execute the smart contract
+const execMsg = toBinary({
+  // ... your execute message JSON here
+});
+const funds = [Cosmos.coin(1n, 'untrn')]; // again, optional
+const result = await CosmWasm.execute(network, signer, contractAddress, execMsg, funds);
+// result is a `TransactionResponse` object
+// note that executions cannot return data beyond logging events
+
+const queryMsg = toBinary({
+  // ... your query message JSON here
+});
+const queryResult = await CosmWasm.query.smart(network, contractAddress, queryMsg);
+// queryResult is the deserialized & unmarshalled result from the contract
 ```
 
-It's that easy.
-
-## WebSocket API
+### WebSocket API
 The WebSocket API is more limited than the REST API, but really well suited for searching specific transactions or building an indexer. Apophis abstracts WebSocket connections to make it incredibly easy to maintain an active connection with subscriptions:
 
 ```typescript
@@ -219,6 +216,27 @@ Cosmos.ws(network).socket.onClose(() => {
 ```
 
 The browser-built-in WebSocket API is highly generic and requires a lot of state management & error handling. Apophis does this for you. For example, it automatically reconnects, sends heartbeats & manages your subscriptions.
+
+## Transactions
+We distinguish between two types of transaction types: `CosmosTransaction`, which is a finalized transaction directly corresponding to the Cosmos SDK's `Tx` type, and `Tx`, which is Apophis SDK's abstraction interface to facilitate building, signing & broadcasting transactions.
+
+```typescript
+import { Cosmos } from '@apophis-sdk/core';
+import { LocalSigner } from '@apophis-sdk/local-signer';
+import { network } from '@apophis-sdk/core/test-helpers.js';
+
+const signer = LocalSigner.fromMnemonic('...');
+
+const tx = new Cosmos.tx([
+  new BankSendMsg(/* ... */).toAny(network),
+]);
+
+await tx.estimateGas(network, signer, true);
+await signer.sign(network, tx);
+await tx.broadcast();
+```
+
+It's that easy.
 
 # License
 Apophis SDK is licensed under **LGPL-3.0**.

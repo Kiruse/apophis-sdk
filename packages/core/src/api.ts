@@ -1,7 +1,7 @@
 import { extendDefaultMarshaller, RecaseMarshalUnit } from '@kiruse/marshal';
 import { restful } from '@kiruse/restful';
 import { Event } from '@kiruse/typed-events';
-import { detectCasing, recase } from '@kristiandupont/recase';
+import { recase } from '@kristiandupont/recase';
 import { sha256 } from '@noble/hashes/sha256';
 import { Coin } from 'cosmjs-types/cosmos/base/v1beta1/coin.js';
 import { Fee, Tx as SdkTx, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
@@ -16,15 +16,16 @@ import type { SignData, Signer } from './signer.js';
 import type { NetworkConfig } from './types.js';
 import { BroadcastMode, TransactionResult, type BasicRestApi, type Block, type BlockEvent, type BlockEventRaw, type CosmosEvent, type TransactionEvent, type TransactionEventRaw, type TransactionResponse, type WS } from './types.sdk.js';
 import { Tx } from './tx.js';
-import { fromBase64, fromSdkPublicKey, toBase64, toHex } from './utils.js';
+import { fromBase64, fromSdkPublicKey, getRandomItem, toBase64, toHex } from './utils.js';
 import { BlockID } from 'cosmjs-types/tendermint/types/types.js';
+import { mw } from './middleware.js';
 
 type Unsub = () => void;
 
 const { marshal, unmarshal } = extendDefaultMarshaller([
   RecaseMarshalUnit(
-    key => recase(detectCasing(key), 'camel')(key),
-    key => recase(detectCasing(key), 'snake')(key),
+    key => recase('mixed', 'camel')(key),
+    key => recase('mixed', 'snake')(key),
   ),
   BytesMarshalUnit,
 ]);
@@ -51,7 +52,7 @@ export const Cosmos = new class {
     if (!this.#apis.get(network)) {
       this.#apis.set(network, restful.default<BasicRestApi>({
         baseUrl() {
-          const url = connections.rest(network);
+          const url = getRandomItem(connections.rest(network));
           if (!url) throw new Error(`No REST API URL set for the network: ${network.name}`);
           return url;
         },
@@ -181,10 +182,6 @@ export const Cosmos = new class {
 
   #purgeSigners() {
     this.#signers = this.#signers.filter(ref => ref.deref() !== undefined);
-  }
-
-  cosmwasm(network?: NetworkConfig) {
-    return this.rest(network).cosmwasm.wasm.v1;
   }
 
   /** Create a new transaction with the given messages. */
@@ -445,6 +442,33 @@ export class CosmosWebSocket {
     }
   }
 
+  /** Expect the given TX to appear on-chain within the given timeframe. */
+  expectTx(tx: Tx, timeout = 30000) {
+    return new Promise<Required<TransactionEvent>['result']>((resolve, reject) => {
+      const timeoutHandle = setTimeout(() => {
+        unsub();
+        reject(new Error(`Transaction ${tx.hash} not found on-chain within ${timeout}ms`));
+      }, timeout);
+
+      const unsub = this.onTx(
+        new TendermintQuery().exact('tx.hash', tx.hash.toUpperCase()),
+        (ev) => {
+          unsub();
+          clearTimeout(timeoutHandle);
+          if (ev.error?.code) {
+            reject(ev.error);
+          } else {
+            if (!ev.result) {
+              reject(new Error(`Transaction ${tx.hash} found but was returned without results`));
+            } else {
+              resolve(ev.result);
+            }
+          }
+        }
+      );
+    });
+  }
+
   /** Get a block by height. If height is not specified, the latest block is returned. */
   getBlock(height?: bigint) {
     return this.send<{ block: Block, block_id: BlockID }>('block', { height });
@@ -586,7 +610,7 @@ export class CosmosWebSocket {
   get connected() { return this.socket.connected }
 
   get endpoint() {
-    const ep = connections.ws(this.network);
+    const ep = getRandomItem(connections.ws(this.network));
     if (!ep) throw new Error(`No WebSocket endpoint set for the network: ${this.network.name}`);
     return ep;
   }
