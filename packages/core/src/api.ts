@@ -16,7 +16,7 @@ import type { SignData, Signer } from './signer.js';
 import type { NetworkConfig } from './types.js';
 import { BroadcastMode, TransactionResult, type BasicRestApi, type Block, type BlockEvent, type BlockEventRaw, type CosmosEvent, type TransactionEvent, type TransactionEventRaw, type TransactionResponse, type WS } from './types.sdk.js';
 import { Tx } from './tx.js';
-import { fromBase64, fromSdkPublicKey, getRandomItem, toBase64, toHex } from './utils.js';
+import { fromBase64, fromHex, fromSdkPublicKey, getRandomItem, toBase64, toHex } from './utils.js';
 import { BlockID } from 'cosmjs-types/tendermint/types/types.js';
 import { mw } from './middleware.js';
 
@@ -297,6 +297,12 @@ export const Cosmos = new class {
 }
 
 export class CosmosWebSocket {
+  config = {
+    getTx: {
+      /** Whether the `hash` parameter of `getTx` is base64 encoded instead of hex. */
+      hashIsBase64: true,
+    },
+  };
   socket: PowerSocket<string>;
   #subs: Record<number, TxSubscriptionMetadata> = {};
   #nextSubId = 2; // 1 is reserved for block subscription
@@ -477,9 +483,10 @@ export class CosmosWebSocket {
   /** Get a transaction by hash. Optionally, you may request a merkle tree proof of the transaction's inclusion in the block (default: true). */
   getTx(hash: string, prove = true) {
     const id = this.#nextSubId++;
+    if (this.config.getTx.hashIsBase64) hash = toBase64(fromHex(hash));
     this.socket.send({
       jsonrpc: '2.0',
-      method: 'get_tx',
+      method: 'tx',
       params: { hash, prove },
       id,
     });
