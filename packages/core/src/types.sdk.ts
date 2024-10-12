@@ -181,17 +181,17 @@ export type TransactionEvent = {
       /** Bytes of the transaction. This is kept as bytes as a common error is a malformed tx. */
       txBytes: string;
     }
-    | {
-      tx: CosmosTransaction;
-      txhash: string;
-      result: {
-        data: string;
-        events: CosmosEvent[];
-        gas_wanted: bigint;
-        gas_used: bigint;
-      };
-      error?: undefined;
-    }
+  | {
+    tx: CosmosTransaction;
+    txhash: string;
+    result: {
+      data: string;
+      events: CosmosEvent[];
+      gas_wanted: bigint;
+      gas_used: bigint;
+    };
+    error?: undefined;
+  }
 )
 
 export interface CosmosLog {
@@ -467,8 +467,8 @@ export type BasicRestApi = {
             smart: {
               [query: string]: RestMethods<{
                 get(): {
-                  /** The result of the smart query, in base64 bytes. */
-                  data: string;
+                  /** The result of the smart query. May be a JSON object or something else, depending on the chain. */
+                  data: unknown;
                 };
               }>;
             };

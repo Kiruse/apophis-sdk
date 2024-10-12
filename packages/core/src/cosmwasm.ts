@@ -109,12 +109,12 @@ export class CosmWasmApi {
     /** The smart query is the most common query type which defers to the smart contract.
      * Other types of queries exist but are currently not supported by *Apophis SDK*.
      */
-    async smart(network: NetworkConfig, contractAddress: string, queryMsg: Uint8Array) {
+    async smart<T = unknown>(network: NetworkConfig, contractAddress: string, queryMsg: Uint8Array) {
       const result = await Cosmos.rest(network).cosmwasm.wasm.v1.contract[contractAddress].smart[toBase64(queryMsg)]('GET');
       if ((result as any).code) {
         throw new Error('Failed to perform smart query');
       }
-      return CosmWasm.fromBinary(fromBase64(result.data));
+      return result.data as T;
     }
   }
 
