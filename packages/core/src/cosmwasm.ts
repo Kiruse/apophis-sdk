@@ -5,7 +5,7 @@ import { ExecuteContractMsg, InstantiateContractMsg, StoreCodeMsg } from './msg/
 import { type NetworkConfig } from './networks';
 import { type Signer } from './signer';
 import { BroadcastMode, Coin, TransactionResponse } from './types.sdk';
-import { fromBase64, fromUtf8, toBase64, toUtf8 } from './utils';
+import { fromBase64, fromHex, fromUtf8, toBase64, toUtf8 } from './utils';
 
 export interface InstantiateOptions {
   network: NetworkConfig;
@@ -15,6 +15,20 @@ export interface InstantiateOptions {
   msg: Uint8Array;
   admin?: string;
   funds?: Coin[];
+}
+
+export interface StateItem {
+  /** The key path of the value. Standard CosmWasm smart contracts generate predictable key paths.
+   * In that case, `keypath` is an array of decoded strings. Otherwise, it is a raw binary encoding.
+   */
+  keypath: string[] | Uint8Array;
+  /** Raw binary value of the state item. Its meaning depends entirely on the contract. */
+  value: Uint8Array;
+}
+
+export interface ContractInfo {
+  contract: string;
+  version: string;
 }
 
 export const baseCosmWasmMarshaller = extendDefaultMarshaller([
@@ -106,6 +120,16 @@ export class CosmWasmApi {
   }
 
   query = new class {
+    constructor(public readonly api: CosmWasmApi) {}
+
+    async raw(network: NetworkConfig, contractAddress: string, keypath: string[] | Uint8Array) {
+      if (!(keypath instanceof Uint8Array)) keypath = encodeKeypath(keypath);
+      const key = keypath instanceof Uint8Array ? toBase64(keypath) : keypath;
+      const { data } = await Cosmos.rest(network).cosmwasm.wasm.v1.contract[contractAddress].raw[key]('GET');
+      if (data === null) return null;
+      return fromBase64(data);
+    }
+
     /** The smart query is the most common query type which defers to the smart contract.
      * Other types of queries exist but are currently not supported by *Apophis SDK*.
      */
@@ -116,7 +140,36 @@ export class CosmWasmApi {
       }
       return result.data as T;
     }
-  }
+
+    /** State is a rarely used query type which can be used to iterate over all state items of a
+     * contract, whether they are exposed through smart queries or not. However, they also require
+     * deeper knowledge of the contract's state structure and the cosmwasm-std specification.
+     */
+    async state(network: NetworkConfig, contractAddress: string, nextKey: string = '') {
+      const { models, pagination } = await Cosmos.rest(network).cosmwasm.wasm.v1.contract[contractAddress].state('GET', {
+        query: {
+          'pagination.key': nextKey,
+          'pagination.offset': 0,
+          'pagination.limit': 100,
+        },
+      });
+
+      return {
+        pagination,
+        items: models.map(model => ({
+          keypath: decodeKeypathMaybe(fromHex(model.key)),
+          value: fromBase64(model.value),
+        })),
+      };
+    }
+
+    /** Attempt to query the CW2 standard contract info. */
+    async contractInfo(network: NetworkConfig, contractAddress: string) {
+      const data = await this.raw(network, contractAddress, ['contract_info']);
+      if (data === null) return null;
+      return this.api.marshaller.unmarshal(JSON.parse(toUtf8(data))) as ContractInfo;
+    }
+  }(this);
 
   toBinary(value: any): Uint8Array {
     return fromUtf8(JSON.stringify(this.marshaller.marshal(value)));
@@ -128,3 +181,52 @@ export class CosmWasmApi {
 }
 
 export const CosmWasm = new CosmWasmApi();
+
+export function encodeKeypath(keypath: string[]): Uint8Array {
+  if (keypath.length === 0)
+    throw new Error('Keypath cannot be empty');
+  // the -2 is to account for the fact that the last key is not preceded by a length
+  const buffer = new ArrayBuffer(keypath.reduce((acc, key) => acc + key.length + 2, -2));
+  const bytes = new Uint8Array(buffer);
+  const view = new DataView(buffer);
+  let offset = 0;
+  const last = keypath.pop()!;
+  for (const key of keypath) {
+    view.setUint16(offset, key.length, false);
+    offset += 2;
+    const keyBytes = fromUtf8(key);
+    bytes.set(keyBytes, offset);
+    offset += keyBytes.length;
+  }
+  bytes.set(fromUtf8(last), offset);
+  return bytes;
+}
+
+export function decodeKeypath(keypath: Uint8Array): string[] {
+  const view = new DataView(keypath.buffer);
+  const result: string[] = [];
+  let offset = 0;
+  let isLast = false;
+  while (offset < keypath.length) {
+    const keyLength = view.getUint16(offset, false);
+    if (offset + 2 + keyLength > keypath.length) {
+      isLast = true;
+      break;
+    }
+    offset += 2;
+    result.push(toUtf8(keypath.subarray(offset, offset + keyLength)));
+    offset += keyLength;
+  }
+  if (!isLast)
+    throw new Error('Non-standard keypath encoding');
+  result.push(toUtf8(keypath.subarray(offset)));
+  return result;
+}
+
+export function decodeKeypathMaybe(keypath: Uint8Array): string[] | Uint8Array {
+  try {
+    return decodeKeypath(keypath);
+  } catch {
+    return keypath;
+  }
+}

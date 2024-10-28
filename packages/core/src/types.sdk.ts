@@ -458,7 +458,7 @@ export type BasicRestApi = {
               [key: string]: RestMethods<{
                 get(): {
                   /** The value associated with the given key, in base64 bytes. */
-                  data: string;
+                  data: string | null;
                 };
               }>;
             };
