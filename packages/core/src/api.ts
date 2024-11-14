@@ -326,7 +326,7 @@ export class CosmosWebSocket {
         try {
           const result = unmarshal(JSON.parse(msg)) as RPCResult;
           if (result.error) {
-            console.warn('RPC error:', result);
+            console.warn('RPC error:', this.network, result);
             return;
           }
 

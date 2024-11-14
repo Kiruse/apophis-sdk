@@ -15,7 +15,7 @@ export class TendermintQuery {
     }
   }
 
-  exact(field: string, value: number | string | Date) {
+  exact(field: string, value: number | bigint | string | Date) {
     this._query.push(`${field}=${this.getValue(value)}`);
     return this;
   }
