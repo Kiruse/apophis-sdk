@@ -16,6 +16,7 @@ export interface AddressProps {
   noControls?: boolean;
   onCopy?(): void;
   onLogout?(): void;
+  copy?(): string;
 }
 
 export interface UserAddressProps extends Omit<AddressProps, 'children'> {
@@ -30,15 +31,25 @@ export function Address({
   class: className,
   style,
   noControls,
-  onCopy = () => { children && navigator.clipboard.writeText(children) },
+  onCopy,
+  copy = () => children ?? '',
 }: Readonly<AddressProps>) {
   const [isAlias, label] = getLabel(children, placeholder, trimSize);
+
+  const handleCopy = () => {
+    const text = copy();
+    if (text) {
+      navigator.clipboard.writeText(text);
+      onCopy?.();
+    }
+  };
+
   return (
     <span class={cx('apophis-address', { alias: isAlias, address: !isAlias }, className)} style={style}>
       {label}
       {!noControls && (
         <span class="apophis-address-icons" style={{ display: 'inline-flex', flexDirection: 'row', gap: 4, alignItems: 'center', paddingLeft: 4 }}>
-          <CopyIcon onClick={onCopy} />
+          <CopyIcon onClick={handleCopy} />
           {extra}
         </span>
       )}
