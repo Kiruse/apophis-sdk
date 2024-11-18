@@ -3,6 +3,7 @@ if [[ -z "$1" || -z "$2" ]]; then
   echo "Usage: vertool.sh bump <major|minor|patch> -OR-"
   echo "Usage: vertool.sh suffix set <suffix> -OR-"
   echo "Usage: vertool.sh suffix clear"
+  echo "Usage: vertool.sh set <version> (careful: does not ensure version is valid)"
   exit 1
 fi
 
@@ -93,6 +94,13 @@ case $command in
         exit 1
         ;;
     esac
+    ;;
+  set)
+    if [[ -z "$1" ]]; then
+      echo "No version provided">&2
+      exit 1
+    fi
+    write_version $1
     ;;
   *)
     echo "Invalid command: $command. Available: bump, suffix">&2
