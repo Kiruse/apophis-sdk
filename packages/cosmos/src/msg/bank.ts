@@ -1,9 +1,9 @@
 import { defineMarshalUnit, morph, pass } from '@kiruse/marshal';
+import { Any } from '@apophis-sdk/core/encoding/protobuf/any.js';
+import { isMarshalledAny } from '@apophis-sdk/core/helpers.js';
+import type { NetworkConfig } from '@apophis-sdk/core/networks.js';
 import type { Coin } from 'cosmjs-types/cosmos/base/v1beta1/coin';
 import { MsgSend } from 'cosmjs-types/cosmos/bank/v1beta1/tx';
-import { Any } from '../encoding/protobuf/any.js';
-import { isMarshalledAny } from '../helpers.js';
-import type { NetworkConfig } from '../networks.js';
 
 export class BankSendMsg {
   static typeUrl = '/cosmos.bank.v1beta1.MsgSend';

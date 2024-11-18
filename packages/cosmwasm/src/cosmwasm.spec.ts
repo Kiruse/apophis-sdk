@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { decodeKeypath, decodeKeypathMaybe, encodeKeypath } from './cosmwasm';
-import { fromHex, toHex } from './utils';
+import { decodeKeypath, encodeKeypath } from './cosmwasm';
+import { fromHex, toHex } from '@apophis-sdk/core/utils.js';
 
 describe('CosmWasm', () => {
   test('encodeKeypath', () => {

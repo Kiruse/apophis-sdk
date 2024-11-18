@@ -1,5 +1,5 @@
-import { connections, Cosmos, SignData, type NetworkConfig, Signer } from '@apophis-sdk/core';
-import { Tx } from '@apophis-sdk/core/tx.js';
+import { connections, SignData, type NetworkConfig, Signer } from '@apophis-sdk/core';
+import { Cosmos, CosmosSigner, CosmosTx } from '@apophis-sdk/cosmos';
 import { BroadcastMode } from '@apophis-sdk/core/types.sdk.js';
 import { addresses } from '@apophis-sdk/core/address.js';
 import { pubkey, PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
@@ -9,16 +9,14 @@ import { wordlist as _wordlist } from '@scure/bip39/wordlists/english';
 import * as secp256k1 from '@noble/secp256k1';
 import { hmac } from '@noble/hashes/hmac';
 import { sha256 } from '@noble/hashes/sha256';
-// import './mw/injective.js';
 
 secp256k1.etc.hmacSha256Sync = (k, ...m) => hmac(sha256, k, secp256k1.etc.concatBytes(...m));
 
-export class LocalSigner extends Signer {
+export class LocalSigner extends CosmosSigner {
   static readonly instance = new LocalSigner();
 
   #privateKey: Uint8Array | undefined;
   #seed: Uint8Array | undefined;
-  #signData = new Map<NetworkConfig, SignData>();
   readonly type = 'local';
   readonly canAutoReconnect = true;
   readonly displayName = 'Local';
@@ -45,7 +43,7 @@ export class LocalSigner extends Signer {
     Cosmos.watchSigner(this);
   }
 
-  async sign(network: NetworkConfig, tx: Tx): Promise<Tx> {
+  async sign(network: NetworkConfig, tx: CosmosTx): Promise<CosmosTx> {
     const bytes = tx.signBytes(network, this);
     const signature = secp256k1.sign(bytes, this.#getPrivateKey(network));
     const sigBytes = signature.toCompactRawBytes();
@@ -57,7 +55,7 @@ export class LocalSigner extends Signer {
     return tx;
   }
 
-  async broadcast(tx: Tx): Promise<string> {
+  async broadcast(tx: CosmosTx): Promise<string> {
     const { network } = tx;
     if (!network) throw new Error('Unsigned transaction');
 

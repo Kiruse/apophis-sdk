@@ -9,4 +9,5 @@
     "declaration": true,
     "importHelpers": true,
   },
+  "exclude": ["dist/"]
 }

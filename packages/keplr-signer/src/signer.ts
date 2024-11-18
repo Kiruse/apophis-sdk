@@ -1,7 +1,8 @@
-import { connections, Cosmos, type NetworkConfig, Signer } from '@apophis-sdk/core';
+import { connections, type NetworkConfig } from '@apophis-sdk/core';
 import { pubkey, PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
-import { Tx } from '@apophis-sdk/core/tx.js';
 import { fromBase64, toHex } from '@apophis-sdk/core/utils.js';
+import { Cosmos, CosmosTx } from '@apophis-sdk/cosmos';
+import { CosmosSigner } from '@apophis-sdk/cosmos/signer.js';
 import { type Window as KeplrWindow } from '@keplr-wallet/types';
 import { AuthInfo, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import Long from 'long';
@@ -15,7 +16,7 @@ declare global {
 
 var signers: Array<WeakRef<KeplrSignerBase>> = [];
 
-export abstract class KeplrSignerBase extends Signer {
+export abstract class KeplrSignerBase extends CosmosSigner {
   readonly canAutoReconnect = true;
 
   constructor() {
@@ -41,9 +42,9 @@ export abstract class KeplrSignerBase extends Signer {
     Cosmos.watchSigner(this);
   }
 
-  abstract sign(network: NetworkConfig, tx: Tx): Promise<Tx>;
+  abstract sign(network: NetworkConfig, tx: CosmosTx): Promise<CosmosTx>;
 
-  async broadcast(tx: Tx): Promise<string> {
+  async broadcast(tx: CosmosTx): Promise<string> {
     const { network } = tx;
     if (!network) throw new Error('Unsigned transaction');
 
@@ -93,7 +94,7 @@ export abstract class KeplrSignerBase extends Signer {
 export class KeplrDirectSigner extends KeplrSignerBase {
   readonly type = 'Keplr.Direct';
 
-  async sign(network: NetworkConfig, tx: Tx): Promise<Tx> {
+  async sign(network: NetworkConfig, tx: CosmosTx): Promise<CosmosTx> {
     const { address, publicKey } = this.getSignData(network)[0];
     if (!window.keplr) throw new Error('Keplr not available');
     if (!address || !publicKey || !network) throw new Error('Account not bound to a network');

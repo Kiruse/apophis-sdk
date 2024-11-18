@@ -1,3 +1,26 @@
+import { addresses } from '@apophis-sdk/core/address.js';
+import { connections } from '@apophis-sdk/core/connection.js';
+import { Any } from '@apophis-sdk/core/encoding/protobuf/any.js';
+import { BytesMarshalUnit } from '@apophis-sdk/core/marshal.js';
+import { PowerSocket } from '@apophis-sdk/core/powersocket.js';
+import { TendermintQuery } from '@apophis-sdk/core/query.js';
+import * as signals from '@apophis-sdk/core/signals.js';
+import type { SignData, Signer } from '@apophis-sdk/core/signer.js';
+import type { NetworkConfig } from '@apophis-sdk/core/types.js';
+import {
+  BroadcastMode,
+  type TransactionResult,
+  type BasicRestApi,
+  type Block,
+  type BlockEvent,
+  type BlockEventRaw,
+  type CosmosEvent,
+  type TransactionEvent,
+  type TransactionEventRaw,
+  type TransactionResponse,
+  type WS,
+} from '@apophis-sdk/core/types.sdk.js';
+import { fromBase64, fromHex, fromSdkPublicKey, getRandomItem, toBase64, toHex } from '@apophis-sdk/core/utils.js';
 import { extendDefaultMarshaller, RecaseMarshalUnit } from '@kiruse/marshal';
 import { restful } from '@kiruse/restful';
 import { Event } from '@kiruse/typed-events';
@@ -5,20 +28,8 @@ import { recase } from '@kristiandupont/recase';
 import { sha256 } from '@noble/hashes/sha256';
 import { Coin } from 'cosmjs-types/cosmos/base/v1beta1/coin.js';
 import { Fee, Tx as SdkTx, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
-import { addresses } from './address.js';
-import { connections } from './connection.js';
-import { Any } from './encoding/protobuf/any.js';
-import { BytesMarshalUnit } from './marshal.js';
-import { PowerSocket } from './powersocket.js';
-import { TendermintQuery } from './query.js';
-import * as signals from './signals.js';
-import type { SignData, Signer } from './signer.js';
-import type { NetworkConfig } from './types.js';
-import { BroadcastMode, TransactionResult, type BasicRestApi, type Block, type BlockEvent, type BlockEventRaw, type CosmosEvent, type TransactionEvent, type TransactionEventRaw, type TransactionResponse, type WS } from './types.sdk.js';
-import { Tx } from './tx.js';
-import { fromBase64, fromHex, fromSdkPublicKey, getRandomItem, toBase64, toHex } from './utils.js';
 import { BlockID } from 'cosmjs-types/tendermint/types/types.js';
-import { mw } from './middleware.js';
+import { CosmosTx } from './tx.js';
 
 type Unsub = () => void;
 
@@ -185,7 +196,7 @@ export const Cosmos = new class {
   }
 
   /** Create a new transaction with the given messages. */
-  tx = (messages: Any[], opts?: Omit<TxBody, 'messages'> & { gas?: Fee }) => new Tx(messages, opts);
+  tx = (messages: Any[], opts?: Omit<TxBody, 'messages'> & { gas?: Fee }) => new CosmosTx(messages, opts);
   coin = (amount: bigint | number, denom: string): Coin => Coin.fromPartial({ amount: amount.toString(), denom });
 
   /** Broadcast a transaction to the network. If `async` is true, will not wait for inclusion in a
@@ -203,7 +214,7 @@ export const Cosmos = new class {
    *
    * @returns the hash of the transaction, computed locally. The existence of the hash is no confirmation of the tx.
    */
-  async broadcast(network: NetworkConfig, tx: Tx, async = false): Promise<string> {
+  async broadcast(network: NetworkConfig, tx: CosmosTx, async = false): Promise<string> {
     // try to broadcast via ws if any has been opened yet. timeout 5s to avoid user waiting too long
     // ws is generally preferable due to lower latency as the connection is already open
     if (this.#sockets.get(network)?.connected) {
@@ -403,7 +414,7 @@ export class CosmosWebSocket {
    *
    * @returns the hash of the transaction, computed locally. The existence of the hash is no confirmation of the tx.
    */
-  async broadcast(tx: Tx, async = false): Promise<string> {
+  async broadcast(tx: CosmosTx, async = false): Promise<string> {
     const method = async ? 'broadcast_tx_async' : 'broadcast_tx_sync';
     const result = await this.send<TransactionResult>(method, [tx.bytes()]);
     if (result.code)
@@ -449,7 +460,7 @@ export class CosmosWebSocket {
   }
 
   /** Expect the given TX to appear on-chain within the given timeframe. */
-  expectTx(tx: Tx, timeout = 30000) {
+  expectTx(tx: CosmosTx, timeout = 30000) {
     return new Promise<Required<TransactionEvent>['result']>((resolve, reject) => {
       const timeoutHandle = setTimeout(() => {
         unsub();

@@ -1,9 +1,9 @@
 import { defineMarshalUnit, morph, pass } from '@kiruse/marshal';
 import type { Coin } from 'cosmjs-types/cosmos/base/v1beta1/coin';
 import { MsgStoreCode, MsgInstantiateContract, MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx';
-import { Any } from '../encoding/protobuf/any.js';
-import { isMarshalledAny } from '../helpers.js';
-import type { NetworkConfig } from '../networks.js';
+import { Any } from '@apophis-sdk/core/encoding/protobuf/any.js';
+import { isMarshalledAny } from '@apophis-sdk/core/helpers.js';
+import type { NetworkConfig } from '@apophis-sdk/core/networks.js';
 
 export class StoreCodeMsg {
   static typeUrl = '/cosmwasm.wasm.v1.MsgStoreCode';

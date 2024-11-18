@@ -1,6 +1,6 @@
 {
   "name": "@apophis-sdk/core",
-  "version": "0.0.8-rc.3",
+  "version": "0.1.0-alpha.1",
   "author": "Kiruse",
   "repository": "https://github.com/kiruse/apophis-sdk.git",
   "type": "module",
@@ -9,12 +9,10 @@
   "exports": {
     ".": "./dist/index.js",
     "./*": "./dist/*",
-    "./ts": "./src/index.ts",
-    "./ts/*": "./src/*"
+    "./middleware.js": "./dist/middleware.js"
   },
   "scripts": {
-    "clean": "rm -rf dist *.tsbuildinfo && npx tsc --build --clean",
-    "build": "npx tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json",
     "test": "bun test"
   },
   "dependencies": {

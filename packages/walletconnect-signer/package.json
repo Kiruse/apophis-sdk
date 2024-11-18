@@ -1,17 +1,16 @@
 {
   "name": "@apophis-sdk/walletconnect-signer",
-  "version": "0.0.8-rc.3",
+  "version": "0.1.0-alpha.1",
   "author": "Kiruse",
   "repository": "https://github.com/kiruse/apophis-sdk.git",
   "type": "module",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "clean": "tsc --build --clean",
-    "build": "rm -rf dist && npx tsc"
+    "build": "tsc"
   },
   "peerDependencies": {
-    "@apophis-sdk/core": "0.0.8-rc.3",
+    "@apophis-sdk/core": "0.1.0-alpha.1",
     "typescript": "^5.0.0"
   },
   "devDependencies": {

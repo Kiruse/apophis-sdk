@@ -1,18 +1,17 @@
-import { Cosmos, type NetworkConfig, Signer } from '@apophis-sdk/core';
+import { type NetworkConfig } from '@apophis-sdk/core';
 import { pubkey, PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
-import { Tx } from '@apophis-sdk/core/tx.js';
+import { Cosmos, CosmosSigner, CosmosTx } from '@apophis-sdk/cosmos';
 import { fromBase64, fromHex, toBase64, toHex } from '@apophis-sdk/core/utils.js';
 import { SignClient as _SignClient } from '@walletconnect/sign-client';
 import { SessionTypes } from '@walletconnect/types';
 import { AuthInfo, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { type WalletConnectSignerConfig } from './config';
-import { WalletConnectBroadcastError, WalletConnectSignerError, WalletConnectSignerNotConnectedError } from './error';
+import { WalletConnectSignerError, WalletConnectSignerNotConnectedError } from './error';
 import LOGO_DATA_URL from './logo';
 import { prompt } from './prompt';
 import { PeerAccount, SignClient, SignResponse } from './types.api';
-import { BroadcastMode } from '@apophis-sdk/core/types.sdk.js';
 
-export class WalletConnectSigner extends Signer {
+export class WalletConnectCosmosSigner extends CosmosSigner {
   #client: Promise<SignClient>; // which is a Promise<SignClient> but they did the typing weird
   #session: SessionTypes.Struct | undefined;
   readonly type = 'walletconnect';
@@ -60,7 +59,7 @@ export class WalletConnectSigner extends Signer {
     }
   }
 
-  async sign(network: NetworkConfig, tx: Tx): Promise<Tx> {
+  async sign(network: NetworkConfig, tx: CosmosTx): Promise<CosmosTx> {
     if (!this.#session) throw new WalletConnectSignerNotConnectedError();
     const client = await this.#client;
     const { topic } = this.#session;
@@ -98,7 +97,7 @@ export class WalletConnectSigner extends Signer {
     return tx;
   }
 
-  async broadcast(tx: Tx): Promise<string> {
+  async broadcast(tx: CosmosTx): Promise<string> {
     return await Cosmos.broadcast(tx.network!, tx);
   }
 

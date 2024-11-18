@@ -1,17 +1,16 @@
+import { addresses } from '@apophis-sdk/core/address.js';
+import { pubkey } from '@apophis-sdk/core/crypto/pubkey.js';
+import { Any } from '@apophis-sdk/core/encoding/protobuf/any.js';
+import { type Asset } from '@apophis-sdk/core/networks.js';
+import { Signer } from '@apophis-sdk/core/signer.js';
+import type { NetworkConfig } from '@apophis-sdk/core/types.js';
 import { sha256 } from '@noble/hashes/sha256';
 import * as secp256k1 from '@noble/secp256k1';
-import { Signal, signal } from '@preact/signals-core';
 import { describe, expect, test } from 'bun:test';
 import { SignMode } from 'cosmjs-types/cosmos/tx/signing/v1beta1/signing.js';
 import { Tx as SdkTx } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { Cosmos } from './api.js';
-import { pubkey } from './crypto/pubkey.js';
-import { Tx } from './tx.js';
-import { Signer } from './signer.js';
-import type { NetworkConfig } from './types.js';
-import { addresses } from './address.js';
-import { type Asset } from './networks.js';
-import { Any } from './encoding/protobuf/any.js';
+import { CosmosTx } from './tx.js';
 
 const asset: Asset = {
   denom: 'tntrn',
@@ -53,14 +52,14 @@ class MockSigner extends Signer {
 
   async connect() {}
 
-  async sign(network: NetworkConfig, tx: Tx) {
+  async sign(network: NetworkConfig, tx: CosmosTx) {
     const bytes = sha256(tx.signBytes(network, this));
     const signature = await secp256k1.signAsync(bytes, this.privateKey);
     tx.setSignature(network, this, signature.toCompactRawBytes());
     return tx;
   }
 
-  broadcast(tx: Tx): Promise<string> {
+  broadcast(tx: CosmosTx): Promise<string> {
     throw new Error('Not implemented');
   }
 
@@ -75,7 +74,7 @@ class MockSigner extends Signer {
 
 describe('Tx', () => {
   test('sdkTx', async () => {
-    const tx = new Tx();
+    const tx = new CosmosTx();
     const signer = new MockSigner(secp256k1.utils.randomPrivateKey());
 
     expect(tx.sdkTx(network, signer)).toEqual(SdkTx.fromPartial({
@@ -105,12 +104,12 @@ describe('Tx', () => {
   });
 
   test('fullSdkTx fails', async () => {
-    const tx = new Tx();
+    const tx = new CosmosTx();
     expect(() => tx.fullSdkTx()).toThrow();
   });
 
   test('fullSdkTx', async () => {
-    const tx = new Tx();
+    const tx = new CosmosTx();
     const signer = new MockSigner(secp256k1.utils.randomPrivateKey());
     tx.gas = {
       amount: [Cosmos.coin(1, 'tntrn')],

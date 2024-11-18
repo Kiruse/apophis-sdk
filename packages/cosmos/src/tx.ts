@@ -1,22 +1,29 @@
+import { Any, config, type NetworkConfig, type Signer, TxBase, TxStatus } from '@apophis-sdk/core';
+import type { Gas } from '@apophis-sdk/core/types.sdk.js';
 import { Decimal } from '@kiruse/decimal';
-import { SignMode } from 'cosmjs-types/cosmos/tx/signing/v1beta1/signing';
-import { AuthInfo, Tx as SdkTx, SignDoc, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
-import { Cosmos } from './api.js';
-import { config } from './constants.js';
-import { Any } from './encoding/protobuf/any.js';
-import type { Gas } from './types.sdk.js';
-import type { Signer } from './signer.js';
-import { NetworkConfig } from './types.js';
 import { sha256 } from '@noble/hashes/sha256';
+import { AuthInfo, Tx as SdkTx, SignDoc, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
+import { SignMode } from 'cosmjs-types/cosmos/tx/signing/v1beta1/signing';
+import { Cosmos } from './api';
 
-export type TxStatus = 'unsigned' | 'signed' | 'confirmed' | 'failed';
+/** The format of a Cosmos transaction. Of the two formats, `protobuf` is the default, and `amino`
+ * is deprecated. Not all messages support the `amino` format as it has painful limitations. When
+ * possible, use `protobuf`. However, the Ledger hardware wallet only supports `amino`, which
+ * unfortunately means that not all transactions can be signed with a Ledger device.
+ */
+export type CosmosTxFormat = 'protobuf' | 'amino';
 
 export interface TxOptions extends Partial<Omit<TxBody, 'messages'>> {
   gas?: Gas;
 }
 
 /** A transaction builder which accumulates data throughout the various steps of the transaction life cycle. */
-export class Tx {
+export class CosmosTx implements TxBase {
+  readonly ecosystem = 'cosmos';
+  /** This is currently just a placeholder for near-future implementation. In the future, changing
+   * this format value will automatically change the signing flow accordingly.
+   */
+  format: CosmosTxFormat = 'protobuf';
   extensionOptions: Any[] = [];
   nonCriticalExtensionOptions: Any[] = [];
   memo = '';
@@ -38,7 +45,7 @@ export class Tx {
     this.timeoutHeight = opts?.timeoutHeight ?? 0n;
   }
 
-  setSignature(network: NetworkConfig, signer: Signer, signature: Uint8Array): this {
+  setSignature(network: NetworkConfig, signer: Signer<any>, signature: Uint8Array): this {
     this.#signer = signer;
     this.#signature = signature;
     this.#network = network;

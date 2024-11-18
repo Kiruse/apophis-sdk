@@ -3,8 +3,6 @@ import { toBase64 } from './utils';
 
 // import these for side effects of adding default marshal units to Any
 import './crypto/pubkey.js';
-import './msg/bank.js';
-import './msg/wasm.js';
 
 export const BytesMarshalUnit = defineMarshalUnit(
   (value: any) => value instanceof Uint8Array ? morph(toBase64(value)) : pass,

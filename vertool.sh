@@ -57,7 +57,7 @@ write_version() {
 
   for filepath in $(printf '%s ' "./packages/*/package.json"); do
     if [ $filepath != "./packages/core/package.json" ]; then
-      jq --arg version "$1" '.peerDependencies["@apophis-sdk/core"] = $version' "$filepath" > "$filepath.tmp" && mv "$filepath.tmp" "$filepath"
+      jq --arg version "$1" '(.peerDependencies | with_entries(if .key | startswith("@apophis-sdk/") then .value = $version else . end)) as $newPeerDeps | .peerDependencies = $newPeerDeps' "$filepath" > "$filepath.tmp" && mv "$filepath.tmp" "$filepath"
     fi
   done
 }
