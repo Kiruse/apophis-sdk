@@ -60,6 +60,7 @@ export class WalletConnectCosmosSigner extends CosmosSigner {
   }
 
   async sign(network: NetworkConfig, tx: CosmosTx): Promise<CosmosTx> {
+    if (network.ecosystem !== 'cosmos') throw new Error('Currently, only Cosmos chains are supported');
     if (!this.#session) throw new WalletConnectSignerNotConnectedError();
     const client = await this.#client;
     const { topic } = this.#session;

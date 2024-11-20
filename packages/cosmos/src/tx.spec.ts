@@ -1,7 +1,7 @@
 import { addresses } from '@apophis-sdk/core/address.js';
 import { pubkey } from '@apophis-sdk/core/crypto/pubkey.js';
 import { Any } from '@apophis-sdk/core/encoding/protobuf/any.js';
-import { type Asset } from '@apophis-sdk/core/networks.js';
+import { type FungibleAsset } from '@apophis-sdk/core/networks.js';
 import { Signer } from '@apophis-sdk/core/signer.js';
 import type { NetworkConfig } from '@apophis-sdk/core/types.js';
 import { sha256 } from '@noble/hashes/sha256';
@@ -12,7 +12,7 @@ import { Tx as SdkTx } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { Cosmos } from './api.js';
 import { CosmosTx } from './tx.js';
 
-const asset: Asset = {
+const asset: FungibleAsset = {
   denom: 'tntrn',
   name: 'Test Neutron',
 };

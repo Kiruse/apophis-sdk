@@ -1,12 +1,12 @@
 import { addresses } from '@apophis-sdk/core/address.js';
-import { connections } from '@apophis-sdk/core/connection.js';
 import { Any } from '@apophis-sdk/core/encoding/protobuf/any.js';
+import { endpoints } from '@apophis-sdk/core/endpoints.js';
 import { BytesMarshalUnit } from '@apophis-sdk/core/marshal.js';
+import type { CosmosNetworkConfig, NetworkConfig } from '@apophis-sdk/core/networks.js';
 import { PowerSocket } from '@apophis-sdk/core/powersocket.js';
 import { TendermintQuery } from '@apophis-sdk/core/query.js';
 import * as signals from '@apophis-sdk/core/signals.js';
 import type { SignData, Signer } from '@apophis-sdk/core/signer.js';
-import type { NetworkConfig } from '@apophis-sdk/core/types.js';
 import {
   BroadcastMode,
   type TransactionResult,
@@ -30,6 +30,7 @@ import { Coin } from 'cosmjs-types/cosmos/base/v1beta1/coin.js';
 import { Fee, Tx as SdkTx, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { BlockID } from 'cosmjs-types/tendermint/types/types.js';
 import { CosmosTx } from './tx.js';
+import { FungibleAsset } from '@apophis-sdk/core';
 
 type Unsub = () => void;
 
@@ -47,23 +48,24 @@ const { marshal, unmarshal } = extendDefaultMarshaller([
  * commonly found & used in smart contract interactions.
  */
 export const Cosmos = new class {
-  #apis = new Map<NetworkConfig, BasicRestApi>();
-  #sockets = new Map<NetworkConfig, CosmosWebSocket>();
+  #apis = new Map<CosmosNetworkConfig, BasicRestApi>();
+  #sockets = new Map<CosmosNetworkConfig, CosmosWebSocket>();
   #signers: WeakRef<Signer>[] = [];
-  #networkWatchers = new Map<NetworkConfig, Unsub>();
+  #networkWatchers = new Map<CosmosNetworkConfig, Unsub>();
 
   /** Get a bound REST API. When undefined, gets the REST API for the current `defaultNetwork` signal
    * value. If that, too, is undefined, throws an error. Note that this associates the concrete
-   * `NetworkConfig` instance with the REST API instance, so take care to pass around the correct
+   * `CosmosNetworkConfig` instance with the REST API instance, so take care to pass around the correct
    * object instance.
    */
   rest(network?: NetworkConfig) {
     network ??= signals.network.value;
     if (!network) throw new Error('No network specified and no active network set');
+    if (network.ecosystem !== 'cosmos') throw new Error('Network is not a Cosmos chain');
     if (!this.#apis.get(network)) {
       this.#apis.set(network, restful.default<BasicRestApi>({
         baseUrl() {
-          const url = getRandomItem(connections.rest(network));
+          const url = endpoints.get(network, 'rest');
           if (!url) throw new Error(`No REST API URL set for the network: ${network.name}`);
           return url;
         },
@@ -77,6 +79,7 @@ export const Cosmos = new class {
   ws(network?: NetworkConfig) {
     network ??= signals.network.value;
     if (!network) throw new Error('No network specified and no active network set');
+    if (network.ecosystem !== 'cosmos') throw new Error('Network is not a Cosmos chain');
     if (!this.#sockets.get(network)) {
       this.#sockets.set(network, new CosmosWebSocket(network).connect());
     }
@@ -85,6 +88,7 @@ export const Cosmos = new class {
 
   async getAccountInfo(network: NetworkConfig, address: string) {
     if (!network || !address) throw new Error('Account not bound to a network');
+    if (network.ecosystem !== 'cosmos') throw new Error('Network is not a Cosmos chain');
     // TODO: this should handle 429s & retry automatically
     const { info } = await this.rest(network).cosmos.auth.v1beta1.account_info[address]('GET');
     return {
@@ -106,11 +110,12 @@ export const Cosmos = new class {
 
   #updateNetworkWatchers() {
     const prevNetworks = new Set(this.#networkWatchers.keys());
-    const networks = new Set<NetworkConfig>();
+    const networks = new Set<CosmosNetworkConfig>();
     for (const ref of this.#signers) {
       const signer = ref.deref();
       if (!signer) continue;
       signer.networks.value.forEach(network => {
+        if (network.ecosystem !== 'cosmos') return;
         networks.add(network);
       });
     }
@@ -129,7 +134,7 @@ export const Cosmos = new class {
     this.#purgeSigners();
   }
 
-  #watchNetwork(network: NetworkConfig) {
+  #watchNetwork(network: CosmosNetworkConfig) {
     // we do things by address here primarily, so it's easiest to build a map of all addresses to signDatas
     const buildSignDataMap = () => {
       const result: Record<string, SignData[]> = {};
@@ -214,7 +219,7 @@ export const Cosmos = new class {
    *
    * @returns the hash of the transaction, computed locally. The existence of the hash is no confirmation of the tx.
    */
-  async broadcast(network: NetworkConfig, tx: CosmosTx, async = false): Promise<string> {
+  async broadcast(network: CosmosNetworkConfig, tx: CosmosTx, async = false): Promise<string> {
     // try to broadcast via ws if any has been opened yet. timeout 5s to avoid user waiting too long
     // ws is generally preferable due to lower latency as the connection is already open
     if (this.#sockets.get(network)?.connected) {
@@ -240,7 +245,7 @@ export const Cosmos = new class {
    * heuristic to estimate number of blocks between two timestamps.
    * @param connectionTimeout is used when first establishing a connection to the full node and defaults to 10s.
    */
-  async findBlockAt(network: NetworkConfig, timestamp: Date, startHeight?: bigint, blockSpeed = 3, connectionTimeout = 10000) {
+  async findBlockAt(network: CosmosNetworkConfig, timestamp: Date, startHeight?: bigint, blockSpeed = 3, connectionTimeout = 10000) {
     if (this.#sockets.get(network)?.connected) {
       const ws = this.ws(network);
       await ws.ready(connectionTimeout);
@@ -305,6 +310,51 @@ export const Cosmos = new class {
       .filter(e => e.type === event)
       .flatMap(e => e.attributes.filter(attr => attr.key === attribute).map(attr => attr.value));
   }
+
+  async getNetworkFromRegistry(name: string): Promise<CosmosNetworkConfig> {
+    const isTestnet = name.match(/testnet|devnet/);
+    const baseurl = isTestnet
+      ? `https://raw.githubusercontent.com/cosmos/chain-registry/master/testnets/${name}`
+      : `https://raw.githubusercontent.com/cosmos/chain-registry/master/${name}`;
+    const [chainData, assetlist] = await Promise.all([
+      fetch(`${baseurl}/chain.json`).then(res => res.json()),
+      fetch(`${baseurl}/assetlist.json`).then(res => res.json()),
+    ]);
+
+    const assets: FungibleAsset[] = assetlist.assets.map((asset: any): FungibleAsset => ({
+      denom: asset.base,
+      name: asset.name,
+      decimals: asset.denom_units.find((unit: any) => unit.denom === asset.display)?.decimals ?? 0,
+    }));
+
+    const [feeData] = chainData.fees?.fee_tokens ?? [];
+    if (!feeData) throw new Error(`No fee info found in Cosmos Chain Registry for ${name}`);
+
+    const feeAsset = assets.find(asset => asset.denom === feeData.denom);
+    if (!feeAsset) throw new Error(`Fee asset ${feeData.denom} not found in asset list for ${name}`);
+
+    return {
+      ecosystem: 'cosmos',
+      name,
+      chainId: chainData.chain_id,
+      prettyName: chainData.pretty_name,
+      addressPrefix: chainData.bech32_prefix,
+      slip44: chainData.slip44,
+      assets: assets,
+      gas: [{
+        asset: feeAsset,
+        avgPrice: feeData.average_gas_price,
+        lowPrice: feeData.low_gas_price ?? feeData.average_gas_price,
+        highPrice: feeData.high_gas_price ?? feeData.average_gas_price,
+        minFee: feeData.fixed_min_gas_price,
+      }],
+      endpoints: {
+        rest: chainData.apis?.rest?.map(({ address }: any) => address),
+        rpc: chainData.apis?.rpc?.map(({ address }: any) => address),
+        ws: chainData.apis?.rpc?.map(({ address }: any) => address).map((ep: string) => ep.replace(/^http/, 'ws').replace(/\/$/, '') + '/websocket'),
+      },
+    };
+  }
 }
 
 export class CosmosWebSocket {
@@ -320,8 +370,8 @@ export class CosmosWebSocket {
   #onBlock = Event<BlockEvent>();
   #heartbeat: ReturnType<typeof setTimeout> | undefined;
 
-  constructor(public readonly network: NetworkConfig) {
-    this.socket = new PowerSocket<string>(() => this.endpoint);
+  constructor(public readonly network: CosmosNetworkConfig) {
+    this.socket = new PowerSocket<string>(() => endpoints.get(network, 'ws'));
   }
 
   connect() {
@@ -626,12 +676,6 @@ export class CosmosWebSocket {
   }
 
   get connected() { return this.socket.connected }
-
-  get endpoint() {
-    const ep = getRandomItem(connections.ws(this.network));
-    if (!ep) throw new Error(`No WebSocket endpoint set for the network: ${this.network.name}`);
-    return ep;
-  }
 }
 
 interface TxSubscriptionMetadata {

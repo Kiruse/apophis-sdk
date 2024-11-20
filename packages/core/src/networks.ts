@@ -1,6 +1,14 @@
 import { Decimal } from '@kiruse/decimal';
 
-export interface NetworkConfig {
+/** Discriminated union of all supported network configurations - discriminated by `ecosystem`. */
+export type NetworkConfig = CosmosNetworkConfig | SolanaNetworkConfig;
+
+/** Specialized configuration for Cosmos chains. This is NOT the same as the Chain Registry. The
+ * design philosophy for this configuration is to be as minimal as possible as to avoid requiring
+ * additional dependencies just to specify a network to connect to.
+ */
+export interface CosmosNetworkConfig {
+  ecosystem: 'cosmos';
   chainId: string;
   prettyName: string;
   /** The unique registry name. */
@@ -20,13 +28,13 @@ export interface NetworkConfig {
    * coin type, it doesn't actually matter which value you use.
    */
   slip44?: number;
-  assets: Asset[];
+  assets: FungibleAsset[];
   /** The default gas price. */
-  gas: GasConfig[];
+  gas: CosmosGasConfig[];
   /** Gas multiplier for estimation. Defaults to 1.2. */
   gasFactor?: number | Decimal;
   /** Optional staking asset. While all Cosmos chains have a staking asset, ThorChain does not allow everybody to participate in it. */
-  staking?: Asset;
+  staking?: FungibleAsset;
   /** Endpoints to use for this network. If omitted, the default is to use the
    * [cosmos.directory](https://cosmos.directory) load balancer.
    *
@@ -45,7 +53,8 @@ export interface NetworkConfig {
   };
 }
 
-export interface Asset {
+/** Base configuration for fungible assets. Primarily used for gas computations or display purposes. */
+export interface FungibleAsset {
   denom: string;
   /** Display name */
   name: string;
@@ -53,12 +62,15 @@ export interface Asset {
   cgid?: string;
   /** Optional CoinMarketCap ID used by some wallets */
   cmcid?: string;
-  /** The number of decimals to use when formatting this asset. Defaults to 6. */
+  /** The number of decimals to use when formatting this asset. Defaults to 6. It is strongly advised to populate this value. */
   decimals?: number;
 }
 
-export interface GasConfig {
-  asset: Asset;
+/** Gas configuration specific to Cosmos chains. However, even within Cosmos, chains may deviate
+ * from this norm. However, this reflects the current standard as documented in the Chain Registry.
+ */
+export interface CosmosGasConfig {
+  asset: FungibleAsset;
   /** Minimum gas fee (note: not the gas price) */
   minFee?: Decimal | number;
   /** Lowest gas price for the cheapest fee. Defaults to `avgPrice`. */
@@ -69,46 +81,21 @@ export interface GasConfig {
   highPrice?: Decimal | number;
 }
 
-export async function networkFromRegistry(name: string): Promise<NetworkConfig> {
-  const isTestnet = name.match(/testnet|devnet/);
-  const baseurl = isTestnet
-    ? `https://raw.githubusercontent.com/cosmos/chain-registry/master/testnets/${name}`
-    : `https://raw.githubusercontent.com/cosmos/chain-registry/master/${name}`;
-  const [chainData, assetlist] = await Promise.all([
-    fetch(`${baseurl}/chain.json`).then(res => res.json()),
-    fetch(`${baseurl}/assetlist.json`).then(res => res.json()),
-  ]);
-
-  const assets: Asset[] = assetlist.assets.map((asset: any): Asset => ({
-    denom: asset.base,
-    name: asset.name,
-    decimals: asset.denom_units.find((unit: any) => unit.denom === asset.display)?.decimals ?? 0,
-  }));
-
-  const [feeData] = chainData.fees?.fee_tokens ?? [];
-  if (!feeData) throw new Error(`No fee info found in Cosmos Chain Registry for ${name}`);
-
-  const feeAsset = assets.find(asset => asset.denom === feeData.denom);
-  if (!feeAsset) throw new Error(`Fee asset ${feeData.denom} not found in asset list for ${name}`);
-
-  return {
-    name,
-    chainId: chainData.chain_id,
-    prettyName: chainData.pretty_name,
-    addressPrefix: chainData.bech32_prefix,
-    slip44: chainData.slip44,
-    assets: assets,
-    gas: [{
-      asset: feeAsset,
-      avgPrice: feeData.average_gas_price,
-      lowPrice: feeData.low_gas_price ?? feeData.average_gas_price,
-      highPrice: feeData.high_gas_price ?? feeData.average_gas_price,
-      minFee: feeData.fixed_min_gas_price,
-    }],
-    endpoints: {
-      rest: chainData.apis?.rest?.map(({ address }: any) => address),
-      rpc: chainData.apis?.rpc?.map(({ address }: any) => address),
-      ws: chainData.apis?.rpc?.map(({ address }: any) => address).map((ep: string) => ep.replace(/^http/, 'ws').replace(/\/$/, '') + '/websocket'),
-    },
-  };
+/** Specialized configuration for Solana chains. Caveat: This is a work in progress. */
+export interface SolanaNetworkConfig {
+  ecosystem: 'solana';
+  /** A unique name for the network. This is used to standardize across different ecosystems, where
+   * the `chainId` may change after a chain upgrade. In solana, this matches the `chainId`, prefixed
+   * by `solana:`.
+   */
+  name: string;
+  /** Unique identifier for the SVM chain. Currently, there are only four options, though technically,
+   * you could spin up your own chain with a new moniker.
+   *
+   * - `mainnet`
+   * - `devnet`
+   * - `testnet`
+   * - `localnet`
+   */
+  chainId: string;
 }

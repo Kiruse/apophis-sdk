@@ -1,4 +1,4 @@
-import { connections, type NetworkConfig } from '@apophis-sdk/core';
+import { endpoints, type CosmosNetworkConfig } from '@apophis-sdk/core';
 import { pubkey, PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
 import { Cosmos, CosmosSigner, CosmosTx } from '@apophis-sdk/cosmos';
 import { fromBase64, toHex } from '@apophis-sdk/core/utils.js';
@@ -32,7 +32,7 @@ export abstract class LeapSignerBase extends CosmosSigner {
     return Promise.resolve(this.available.value = !!window.leap);
   }
 
-  async connect(networks: NetworkConfig[]) {
+  async connect(networks: CosmosNetworkConfig[]) {
     if (!window.leap) throw new Error('Keplr not available');
     if (!networks.length) throw new Error('No networks provided');
     await Promise.all(networks.map(network => window.leap?.experimentalSuggestChain(toChainSuggestion(network))));
@@ -41,7 +41,7 @@ export abstract class LeapSignerBase extends CosmosSigner {
     Cosmos.watchSigner(this);
   }
 
-  abstract sign(network: NetworkConfig, tx: CosmosTx): Promise<CosmosTx>;
+  abstract sign(network: CosmosNetworkConfig, tx: CosmosTx): Promise<CosmosTx>;
 
   async broadcast(tx: CosmosTx): Promise<string> {
     const { network } = tx;
@@ -61,11 +61,11 @@ export abstract class LeapSignerBase extends CosmosSigner {
   /** Load `SignData` for the given networks. This is intended for internal use only and will be
    * automatically called by the integration.
    */
-  async loadSignData(networks?: NetworkConfig[]) {
+  async loadSignData(networks?: CosmosNetworkConfig[]) {
     await this._initSignData(networks ?? this.networks.value);
   }
 
-  protected async getAccounts(network: NetworkConfig): Promise<{ address: string; publicKey: PublicKey }[]> {
+  protected async getAccounts(network: CosmosNetworkConfig): Promise<{ address: string; publicKey: PublicKey }[]> {
     const offlineSigner = window.leap!.getOfflineSigner(network.chainId);
     return ((await offlineSigner.getAccounts()) as any[])
       .filter(account => account.algo === 'secp256k1' || account.algo === 'ed25519')
@@ -92,7 +92,7 @@ export abstract class LeapSignerBase extends CosmosSigner {
 export class LeapDirectSigner extends LeapSignerBase {
   readonly type = 'Keplr.Direct';
 
-  async sign(network: NetworkConfig, tx: CosmosTx): Promise<CosmosTx> {
+  async sign(network: CosmosNetworkConfig, tx: CosmosTx): Promise<CosmosTx> {
     const { address, publicKey } = this.getSignData(network)[0];
     if (!window.leap) throw new Error('Keplr not available');
     if (!address || !publicKey || !network) throw new Error('Account not bound to a network');
@@ -130,12 +130,12 @@ export class LeapDirectSigner extends LeapSignerBase {
 /** Instance of LeapDirectSigner. Most likely the only instance you'll need. */
 export const LeapDirect = new LeapDirectSigner();
 
-function toChainSuggestion(network: NetworkConfig): Parameters<Required<Window>['leap']['experimentalSuggestChain']>[0] {
+function toChainSuggestion(network: CosmosNetworkConfig): Parameters<Required<Window>['leap']['experimentalSuggestChain']>[0] {
   return {
     chainId: network.chainId,
     chainName: network.prettyName,
-    rpc: network.name.match(/testnet$/) ? connections.rpc(network)[0] : `https://rpc.cosmos.directory/${network.name}`,
-    rest: network.name.match(/testnet$/) ? connections.rest(network)[0] : `https://rest.cosmos.directory/${network.name}`,
+    rpc: endpoints.get(network, 'rpc'),
+    rest: endpoints.get(network, 'rest'),
     bip44: {
       coinType: network.slip44!,
     },

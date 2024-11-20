@@ -1,4 +1,4 @@
-import { Any, config, type NetworkConfig, type Signer, TxBase, TxStatus } from '@apophis-sdk/core';
+import { Any, config, type CosmosNetworkConfig, type Signer, TxBase, TxStatus } from '@apophis-sdk/core';
 import type { Gas } from '@apophis-sdk/core/types.sdk.js';
 import { Decimal } from '@kiruse/decimal';
 import { sha256 } from '@noble/hashes/sha256';
@@ -32,7 +32,7 @@ export class CosmosTx implements TxBase {
   #status: TxStatus = 'unsigned';
   #signer: Signer | undefined;
   #signature: Uint8Array | undefined;
-  #network: NetworkConfig | undefined;
+  #network: CosmosNetworkConfig | undefined;
   #hash: string | undefined;
   #error: string | undefined;
   gas: Gas | undefined;
@@ -45,7 +45,7 @@ export class CosmosTx implements TxBase {
     this.timeoutHeight = opts?.timeoutHeight ?? 0n;
   }
 
-  setSignature(network: NetworkConfig, signer: Signer<any>, signature: Uint8Array): this {
+  setSignature(network: CosmosNetworkConfig, signer: Signer<any>, signature: Uint8Array): this {
     this.#signer = signer;
     this.#signature = signature;
     this.#network = network;
@@ -57,7 +57,7 @@ export class CosmosTx implements TxBase {
     return this;
   }
 
-  computeGas(network: NetworkConfig, size: bigint | number, populate?: boolean): Gas {
+  computeGas(network: CosmosNetworkConfig, size: bigint | number, populate?: boolean): Gas {
     const [cfg] = network.gas;
     const gas = Decimal.parse(size);
     const amount = gas.mul(Decimal.parse(cfg.lowPrice ?? cfg.avgPrice)).rebase(0).valueOf() + 1n;
@@ -81,13 +81,13 @@ export class CosmosTx implements TxBase {
   }
 
   /** Non-interface method to simulate this transaction. `estimateGas` extracts the `gas_info` from this method's result. */
-  simulate(network: NetworkConfig, signer: Signer) {
+  simulate(network: CosmosNetworkConfig, signer: Signer) {
     return Cosmos.rest(network).cosmos.tx.v1beta1.simulate('POST', {
       tx_bytes: SdkTx.encode(this.sdkTx(network, signer)).finish(),
     });
   }
 
-  async estimateGas(network: NetworkConfig, signer: Signer, populate?: boolean): Promise<Gas> {
+  async estimateGas(network: CosmosNetworkConfig, signer: Signer, populate?: boolean): Promise<Gas> {
     const { gas_info } = await this.simulate(network, signer);
     if (!gas_info) throw new Error('Failed to simulate transaction');
     const units = Decimal.parse(gas_info.gas_used).mul(Decimal.parse(network.gasFactor ?? config.gasFactor)).rebase(0);
@@ -107,7 +107,7 @@ export class CosmosTx implements TxBase {
    * 3. `.setSignature` to finalize the transaction document
    * 4. `.broadcast` to send the transaction to the network
    */
-  signDoc(network: NetworkConfig, signer: Signer): SignDoc {
+  signDoc(network: CosmosNetworkConfig, signer: Signer): SignDoc {
     if (!this.gas) throw new Error('Gas not set');
     const sdktx = this.sdkTx(network, signer);
     return SignDoc.fromPartial({
@@ -119,7 +119,7 @@ export class CosmosTx implements TxBase {
   }
 
   /** Get a partial Cosmos SDK Tx object. This does not require gas or signature, in which case it can be used for simulation (including gas estimation). */
-  sdkTx(network: NetworkConfig, signer: Signer, signature = new Uint8Array()): SdkTx {
+  sdkTx(network: CosmosNetworkConfig, signer: Signer, signature = new Uint8Array()): SdkTx {
     const { publicKey, sequence } = signer.getSignData(network)[0];
     if (!network || !publicKey) throw new Error('Account not bound');
     return SdkTx.fromPartial({
@@ -152,7 +152,7 @@ export class CosmosTx implements TxBase {
     return this.sdkTx(this.#network, this.#signer, this.#signature);
   }
 
-  signBytes(network: NetworkConfig, signer: Signer): Uint8Array {
+  signBytes(network: CosmosNetworkConfig, signer: Signer): Uint8Array {
     return sha256(SignDoc.encode(this.signDoc(network, signer)).finish());
   }
 

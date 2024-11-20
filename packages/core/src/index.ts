@@ -4,7 +4,7 @@ import type { Signer } from './signer.js';
 
 export * from './address.js';
 export { Any } from './encoding/protobuf/any.js';
-export * from './connection.js';
+export * from './endpoints.js';
 export * from './constants.js';
 export * from './networks.js';
 export * as signals from './signals.js';

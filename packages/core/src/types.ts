@@ -13,7 +13,7 @@ export interface ApophisConfig {
 export type Loading<T> = ({ loading: true } & Partial<T>) | ({ loading: false } & T);
 
 /** The ecosystem a transaction, wallet, or API belongs to. The possible values are the currently only supported ecosystems. */
-export type Ecosystem = 'cosmos' | 'solana';
+export type Ecosystem = NetworkConfig['ecosystem'];
 export type TxStatus = 'unsigned' | 'signed' | 'confirmed' | 'failed';
 
 export interface TxBase {

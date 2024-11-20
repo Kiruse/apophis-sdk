@@ -1,4 +1,4 @@
-import { connections, SignData, type NetworkConfig, Signer } from '@apophis-sdk/core';
+import { endpoints, type NetworkConfig } from '@apophis-sdk/core';
 import { Cosmos, CosmosSigner, CosmosTx } from '@apophis-sdk/cosmos';
 import { BroadcastMode } from '@apophis-sdk/core/types.sdk.js';
 import { addresses } from '@apophis-sdk/core/address.js';
@@ -44,6 +44,7 @@ export class LocalSigner extends CosmosSigner {
   }
 
   async sign(network: NetworkConfig, tx: CosmosTx): Promise<CosmosTx> {
+    if (network.ecosystem !== 'cosmos') throw new Error('Currently, only Cosmos chains are supported');
     const bytes = tx.signBytes(network, this);
     const signature = secp256k1.sign(bytes, this.#getPrivateKey(network));
     const sigBytes = signature.toCompactRawBytes();
@@ -59,7 +60,7 @@ export class LocalSigner extends CosmosSigner {
     const { network } = tx;
     if (!network) throw new Error('Unsigned transaction');
 
-    const url = connections.rest(network);
+    const url = endpoints.get(network, 'rest');
     if (!url) throw new Error('No REST endpoint available');
 
     const { tx_response: response } = await Cosmos.rest(network).cosmos.tx.v1beta1.txs('POST', { mode: BroadcastMode.BROADCAST_MODE_SYNC, tx_bytes: tx.bytes() });
@@ -78,6 +79,7 @@ export class LocalSigner extends CosmosSigner {
   }
 
   #getPrivateKey(network: NetworkConfig, accountIndex = 0, addressIndex = 0) {
+    if (network.ecosystem !== 'cosmos') throw new Error('Currently, only Cosmos chains are supported');
     if (this.#privateKey) return this.#privateKey;
     if (!this.#seed) throw new Error('No private key or mnemonic/seed set');
     const key = bip32.HDKey.fromMasterSeed(this.#seed).derive(`m/44'/${network.slip44 ?? 118}'/${accountIndex}'/0/${addressIndex}`);

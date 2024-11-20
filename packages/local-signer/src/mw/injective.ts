@@ -10,8 +10,9 @@ import { keccak_256 as keccak256 } from '@noble/hashes/sha3';
 mw.use(
   {
     addresses: {
-      compute: (network: NetworkConfig | string, publicKey: PublicKey) => {
-        if (network === 'inj' || typeof network !== 'string' && network.name !== 'injective') return;
+      compute: (network: NetworkConfig, publicKey: PublicKey) => {
+        // the first check is redundant, but it allows TypeScript to narrow the NetworkConfig to a CosmosNetworkConfig
+        if (network.ecosystem !== 'cosmos' || network.name !== 'injective') return;
         if (!pubkey.isSecp256k1(publicKey)) throw new Error('Invalid pubkey type, expected secp256k1');
 
         const prefix = typeof network === 'string' ? network : network.addressPrefix;

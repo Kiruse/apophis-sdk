@@ -1,4 +1,4 @@
-import { connections, type NetworkConfig } from '@apophis-sdk/core';
+import { endpoints, type CosmosNetworkConfig } from '@apophis-sdk/core';
 import { pubkey, PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
 import { fromBase64, toHex } from '@apophis-sdk/core/utils.js';
 import { Cosmos, CosmosTx } from '@apophis-sdk/cosmos';
@@ -33,7 +33,7 @@ export abstract class KeplrSignerBase extends CosmosSigner {
     return Promise.resolve(this.available.value = isAvailable());
   }
 
-  async connect(networks: NetworkConfig[]) {
+  async connect(networks: CosmosNetworkConfig[]) {
     if (!window.keplr) throw new Error('Keplr not available');
     if (!networks.length) throw new Error('No networks provided');
     await Promise.all(networks.map((network) => window.keplr?.experimentalSuggestChain(toChainSuggestion(network))));
@@ -42,7 +42,7 @@ export abstract class KeplrSignerBase extends CosmosSigner {
     Cosmos.watchSigner(this);
   }
 
-  abstract sign(network: NetworkConfig, tx: CosmosTx): Promise<CosmosTx>;
+  abstract sign(network: CosmosNetworkConfig, tx: CosmosTx): Promise<CosmosTx>;
 
   async broadcast(tx: CosmosTx): Promise<string> {
     const { network } = tx;
@@ -63,11 +63,11 @@ export abstract class KeplrSignerBase extends CosmosSigner {
   /** Load `SignData` for the given networks. This is intended for internal use only and will be
    * automatically called by the integration.
    */
-  async loadSignData(networks?: NetworkConfig[]) {
+  async loadSignData(networks?: CosmosNetworkConfig[]) {
     await this._initSignData(networks ?? this.networks.value);
   }
 
-  protected async getAccounts(network: NetworkConfig): Promise<{ address: string; publicKey: PublicKey }[]> {
+  protected async getAccounts(network: CosmosNetworkConfig): Promise<{ address: string; publicKey: PublicKey }[]> {
     const offlineSigner = window.keplr!.getOfflineSigner(network.chainId);
     return (await offlineSigner.getAccounts())
       .filter(account => account.algo === 'secp256k1' || account.algo === 'ed25519')
@@ -94,7 +94,7 @@ export abstract class KeplrSignerBase extends CosmosSigner {
 export class KeplrDirectSigner extends KeplrSignerBase {
   readonly type = 'Keplr.Direct';
 
-  async sign(network: NetworkConfig, tx: CosmosTx): Promise<CosmosTx> {
+  async sign(network: CosmosNetworkConfig, tx: CosmosTx): Promise<CosmosTx> {
     const { address, publicKey } = this.getSignData(network)[0];
     if (!window.keplr) throw new Error('Keplr not available');
     if (!address || !publicKey || !network) throw new Error('Account not bound to a network');
@@ -132,12 +132,12 @@ export class KeplrDirectSigner extends KeplrSignerBase {
 /** Instance of KeplrDirectSigner. Most likely the only instance you'll need. */
 export const KeplrDirect = new KeplrDirectSigner();
 
-function toChainSuggestion(network: NetworkConfig): Parameters<Required<KeplrWindow>['keplr']['experimentalSuggestChain']>[0] {
+function toChainSuggestion(network: CosmosNetworkConfig): Parameters<Required<KeplrWindow>['keplr']['experimentalSuggestChain']>[0] {
   return {
     chainId: network.chainId,
     chainName: network.prettyName,
-    rpc: network.name.match(/testnet|devnet/) ? connections.rpc(network)[0] : `https://rpc.cosmos.directory/${network.name}`,
-    rest: network.name.match(/testnet|devnet/) ? connections.rest(network)[0] : `https://rest.cosmos.directory/${network.name}`,
+    rpc: endpoints.get(network, 'rpc'),
+    rest: endpoints.get(network, 'rest'),
     bip44: {
       coinType: network.slip44!,
     },

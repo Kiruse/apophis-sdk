@@ -1,26 +1,38 @@
 import { PublicKey } from './crypto/pubkey.js';
 import { type Any } from './encoding/protobuf/any.js';
-import { type NetworkConfig } from './networks.js';
+import { CosmosEndpoint, SolanaEndpoint } from './endpoints.js';
+import { CosmosNetworkConfig, SolanaNetworkConfig, type NetworkConfig } from './networks.js';
 
 const middlewares: Middleware[] = [];
 
 export interface Middleware {
   addresses: MiddlewareAddresses;
   beta: MiddlewareBeta;
-  connection: MiddlewareConnection;
+  /** `endpoints` middleware for retrieving & listing endpoints for a network. */
+  endpoints: MiddlewareEndpoints;
   protobuf: MiddlewareProtobuf;
 }
 
 export interface MiddlewareAddresses {
   alias(address: string): string | undefined;
   resolve(alias: string): string | undefined;
-  compute(prefixOrNetwork: NetworkConfig | string, publicKey: PublicKey): string;
+  compute(network: NetworkConfig, publicKey: PublicKey): string;
 }
 
 export interface MiddlewareBeta {}
 
-export interface MiddlewareConnection {
-  endpoint(network: NetworkConfig, which: 'rest' | 'rpc' | 'ws'): string[];
+export interface MiddlewareEndpoints {
+  /** `inv().fifo` middleware for retrieving an endpoint from a network's endpoints backends, called by
+   * `endpoints.get`.
+   */
+  get(network: CosmosNetworkConfig, which: CosmosEndpoint): string;
+  get(network: SolanaNetworkConfig, which: SolanaEndpoint): string;
+  get(network: NetworkConfig, which: string): string;
+
+  /** `inv().fifo` middleware for listing all endpoints for a network, called by `endpoints.list`. */
+  list(network: CosmosNetworkConfig, which: CosmosEndpoint): string[];
+  list(network: SolanaNetworkConfig, which: SolanaEndpoint): string[];
+  list(network: NetworkConfig, which: string): string[];
 }
 
 export interface MiddlewareProtobuf {
@@ -108,6 +120,15 @@ class MiddlewarePipeline<KP extends string[]> {
         console.error('Error during middleware notify (sync):', e);
       }
     }
+  }
+
+  /** Call the middlewares with the given arguments, reducing the result of each middleware with the given reducer. */
+  reduce(args: any[], reducer: (result: any, response: any) => any, initial: any) {
+    let result = initial;
+    for (const cb of this.iterator(this.#extract)) {
+      result = reducer(result, cb(...args));
+    }
+    return result;
   }
 
   #extract = (mw: MiddlewareImpl) => this.kp.reduce((acc: any, key) => acc?.[key], mw) as MiddlewareImpl;

@@ -1,6 +1,6 @@
 import { BytesMarshalUnit } from '@apophis-sdk/core/marshal.js';
 import { ExecuteContractMsg, InstantiateContractMsg, StoreCodeMsg } from './msgs.js';
-import { type NetworkConfig } from '@apophis-sdk/core/networks.js';
+import { type CosmosNetworkConfig } from '@apophis-sdk/core/networks.js';
 import { type Signer } from '@apophis-sdk/core/signer.js';
 import type { Coin, TransactionResponse } from '@apophis-sdk/core/types.sdk.js';
 import { fromBase64, fromHex, fromUtf8, toBase64, toUtf8 } from '@apophis-sdk/core/utils.js';
@@ -8,7 +8,7 @@ import { Cosmos } from '@apophis-sdk/cosmos';
 import { extendDefaultMarshaller, ToJsonMarshalUnit } from '@kiruse/marshal';
 
 export interface InstantiateOptions {
-  network: NetworkConfig;
+  network: CosmosNetworkConfig;
   signer: Signer;
   codeId: bigint;
   label: string;
@@ -42,7 +42,7 @@ export class CosmWasmApi {
   ) {}
 
   /** Convenience function to store the given contract code on-chain. Waits for block inclusion & returns the new code's ID. */
-  async store(network: NetworkConfig, signer: Signer, code: Uint8Array) {
+  async store(network: CosmosNetworkConfig, signer: Signer, code: Uint8Array) {
     const tx = Cosmos.tx([
       new StoreCodeMsg({ sender: signer.address(network), wasmByteCode: code }).toAny(network),
     ]);
@@ -97,7 +97,7 @@ export class CosmWasmApi {
   }
 
   /** Convenience function to invoke a contract execution. Waits for block inclusion & returns the transaction response. */
-  async execute(network: NetworkConfig, signer: Signer, contractAddress: string, msg: Uint8Array, funds: Coin[] = []): Promise<TransactionResponse> {
+  async execute(network: CosmosNetworkConfig, signer: Signer, contractAddress: string, msg: Uint8Array, funds: Coin[] = []): Promise<TransactionResponse> {
     const tx = Cosmos.tx([
       new ExecuteContractMsg({
         sender: signer.address(network),
@@ -122,7 +122,7 @@ export class CosmWasmApi {
   query = new class {
     constructor(public readonly api: CosmWasmApi) {}
 
-    async raw(network: NetworkConfig, contractAddress: string, keypath: string[] | Uint8Array) {
+    async raw(network: CosmosNetworkConfig, contractAddress: string, keypath: string[] | Uint8Array) {
       if (!(keypath instanceof Uint8Array)) keypath = encodeKeypath(keypath);
       const key = keypath instanceof Uint8Array ? toBase64(keypath) : keypath;
       const { data } = await Cosmos.rest(network).cosmwasm.wasm.v1.contract[contractAddress].raw[key]('GET');
@@ -133,7 +133,7 @@ export class CosmWasmApi {
     /** The smart query is the most common query type which defers to the smart contract.
      * Other types of queries exist but are currently not supported by *Apophis SDK*.
      */
-    async smart<T = unknown>(network: NetworkConfig, contractAddress: string, queryMsg: Uint8Array) {
+    async smart<T = unknown>(network: CosmosNetworkConfig, contractAddress: string, queryMsg: Uint8Array) {
       const result = await Cosmos.rest(network).cosmwasm.wasm.v1.contract[contractAddress].smart[toBase64(queryMsg)]('GET');
       if ((result as any).code) {
         throw new Error('Failed to perform smart query');
@@ -145,7 +145,7 @@ export class CosmWasmApi {
      * contract, whether they are exposed through smart queries or not. However, they also require
      * deeper knowledge of the contract's state structure and the cosmwasm-std specification.
      */
-    async state(network: NetworkConfig, contractAddress: string, nextKey: string = '') {
+    async state(network: CosmosNetworkConfig, contractAddress: string, nextKey: string = '') {
       const { models, pagination } = await Cosmos.rest(network).cosmwasm.wasm.v1.contract[contractAddress].state('GET', {
         query: {
           'pagination.key': nextKey,
@@ -164,7 +164,7 @@ export class CosmWasmApi {
     }
 
     /** Attempt to query the CW2 standard contract info. */
-    async contractInfo(network: NetworkConfig, contractAddress: string) {
+    async contractInfo(network: CosmosNetworkConfig, contractAddress: string) {
       const data = await this.raw(network, contractAddress, ['contract_info']);
       if (data === null) return null;
       return this.api.marshaller.unmarshal(JSON.parse(toUtf8(data))) as ContractInfo;

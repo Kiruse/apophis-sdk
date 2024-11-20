@@ -1,14 +1,15 @@
-import { Asset, NetworkConfig } from './networks';
+import { FungibleAsset, CosmosNetworkConfig } from './networks';
 
 /** A dummy asset intended for unit testing. Should not be used in production code. */
-export const asset: Asset = {
+export const asset: FungibleAsset = {
   denom: 'untrn',
   decimals: 6,
   name: 'Neutron',
 };
 
 /** A dummy network config intended for unit testing. Should not be used in production code. */
-export const network: NetworkConfig = {
+export const network: CosmosNetworkConfig = {
+  ecosystem: 'cosmos',
   chainId: 'pion-1',
   prettyName: 'Neutron Testnet',
   name: 'neutron-testnet',

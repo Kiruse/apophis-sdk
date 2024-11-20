@@ -1,7 +1,7 @@
 import { ripemd160 } from '@noble/hashes/ripemd160';
 import { sha256 } from '@noble/hashes/sha256';
-import { bech32 } from '@scure/base';
-import { NetworkConfig } from './networks';
+import { base58, bech32 } from '@scure/base';
+import { CosmosNetworkConfig, NetworkConfig, SolanaNetworkConfig } from './networks';
 import { type MiddlewareAddresses, type MiddlewareImpl, mw } from './middleware';
 import { DeepPartial } from 'cosmjs-types';
 import { pubkey, PublicKey } from './crypto/pubkey';
@@ -27,8 +27,8 @@ export const addresses = new class {
    * but Injective computes the bech32 representation of the Ethereum address, effectively using
    * `bech32(keccak256(uncompressed_pubkey[1:])[-20:])`.
    */
-  compute(prefixOrNetwork: NetworkConfig | string, publicKey: PublicKey): string {
-    return mw('addresses', 'compute').inv().fifo(prefixOrNetwork, publicKey);
+  compute(network: NetworkConfig, publicKey: PublicKey): string {
+    return mw('addresses', 'compute').inv().fifo(network, publicKey);
   }
 }
 
@@ -92,14 +92,30 @@ export function trimAddress(address: string, trimSize: number) {
   return `${prefix}${address.slice(0, trimSize)}…${address.slice(-trimSize)}`;
 }
 
-/** Default middleware that computes the address using the default Cosmos SDK algorithm. */
+/** Default middleware that computes the address using the default Cosmos SDK / Solana algorithm. */
 mw.use({
   addresses: {
-    compute: (prefixOrNetwork: NetworkConfig | string, publicKey: PublicKey) => {
-      if (!pubkey.isSecp256k1(publicKey)) throw new Error('Invalid pubkey type, expected secp256k1');
-      if (publicKey.key.length !== 33) throw new Error('Invalid pubkey length, expected 33');
-      const prefix = typeof prefixOrNetwork === 'string' ? prefixOrNetwork : prefixOrNetwork.addressPrefix;
-      return bech32.encode(prefix, bech32.toWords(ripemd160(sha256(publicKey.key))));
+    compute: (network: NetworkConfig, publicKey: PublicKey) => {
+      switch (network.ecosystem) {
+        case 'cosmos': return computeCosmosAddress(network, publicKey);
+        case 'solana': return computeSolanaAddress(network, publicKey);
+        default: throw new Error('Unsupported ecosystem');
+      }
     },
   },
 });
+
+function computeCosmosAddress(network: CosmosNetworkConfig, publicKey: PublicKey) {
+  if (!pubkey.isSecp256k1(publicKey)) throw new Error('Invalid pubkey type, expected secp256k1');
+  if (publicKey.key.length !== 33) throw new Error('Invalid pubkey length, expected 33');
+  const prefix = network.addressPrefix;
+  return bech32.encode(prefix, bech32.toWords(ripemd160(sha256(publicKey.key))));
+}
+
+function computeSolanaAddress(network: SolanaNetworkConfig, publicKey: PublicKey) {
+  // see https://chainstack.com/how-do-ethereum-and-solana-generate-public-and-private-keys/#7-generating-account-address-from-private-key-for-solana
+  // for the algorithm to derive address from private key
+  if (!pubkey.isSecp256k1(publicKey)) throw new Error('Invalid pubkey type, expected secp256k1');
+  if (publicKey.key.length !== 32) throw new Error('Invalid pubkey length, expected 32');
+  return base58.encode(publicKey.key);
+}
