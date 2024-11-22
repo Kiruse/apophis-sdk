@@ -1,0 +1,29 @@
+{
+  "name": "@apophis-sdk/keplr-signer",
+  "version": "0.0.8-rc.3",
+  "author": "Kiruse",
+  "repository": "https://github.com/kiruse/apophis-sdk.git",
+  "type": "module",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "clean": "tsc --build --clean",
+    "build": "rm -rf dist && npx tsc"
+  },
+  "dependencies": {
+    "@keplr-wallet/types": "^0.12.121",
+    "long": "^5.2.3"
+  },
+  "peerDependencies": {
+    "@apophis-sdk/core": "0.0.8-rc.3",
+    "typescript": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.3.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "tsconfig.json"
+  ]
+}
