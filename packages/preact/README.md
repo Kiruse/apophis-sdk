@@ -1,5 +1,5 @@
 # @apophis-sdk/preact
-Preact integration of the [Crypto Me](https://github.com/Kiruse/Apophis SDK) web3 wallet integration framework.
+Preact integration of the [Apophis SDK](https://github.com/Kiruse/apophis-sdk) web3 wallet integration framework.
 
 # Installation
 Install with your favorite package manager's equivalent of:
@@ -43,24 +43,3 @@ There are various components designed to facilitate user interaction & connectio
 - `WalletModal` is a dialog wrapper component around `WalletSelector`.
 - `Address` is designed to show & optionally truncate an address. It comes with a built-in copy icon button.
 - `UserAddress` is a wrapper around `Address` that will show & automatically update the address when the `signals.signer` changes.
-
-# UX Recommendations
-Cosmos is a vast & heterogenous ecosystem. Cosmos is also excessively overwhelming for newcomers. I
-thus strongly recommend that Dapp designers & developers abstract away the details of Cosmos chains,
-and instead of requiring the user to make a conscious decision about which network they intend to
-use, you should infer it based on the user's actions & intents.
-
-Think of your Dapp as self-contained. Tackle design from a user's perspective. Imagine the user has
-no knowledge of our ecosystem at all. They just want to get something done. For example, simply
-sending some funds across chains. Most Dapps first ask you where these funds are coming from. Heck
-if I know, I just want to send some $WHALE to my friend! So, let them search for $WHALE instead, and
-then let them choose which network they intend to use, showing balances for each. Then, depending
-on the recipient's address, extract the Bech32 prefix and find the appropriate network. If multiple,
-let them choose. The less the user has to think about their actions, the better.
-
-[In my own project](https://dropnote.io), I infer the network based on the recipient's address. When
-selecting a conversation, Dropnote detects the recipient, extracts the Bech32 prefix, and
-automatically chooses the first matching network. The network dropdown is now filtered to only show
-networks with the detected prefix. In the case of Neutron, this matches Mainnet & Testnet. In the
-case of Terra, this would match Mainnet & Classic. When creating a new conversation, the user must
-enter the recipient's address, which triggers the same network detection logic.
