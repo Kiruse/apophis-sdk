@@ -35,7 +35,7 @@ fi
 for package in $(printf '%s ' packages/*); do
   cd $dir/$package
   echo "Publishing $package to $REGNAME"
-  npm publish --access public $REGISTRY > /dev/null 2>&1
+  npm publish --access public $REGISTRY
 done
 
 echo "Done."
