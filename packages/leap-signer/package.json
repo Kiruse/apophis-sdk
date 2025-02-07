@@ -1,6 +1,6 @@
 {
   "name": "@apophis-sdk/leap-signer",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "author": "Kiruse",
   "repository": "https://github.com/kiruse/apophis-sdk.git",
   "type": "module",
@@ -10,7 +10,7 @@
     "build": "tsc"
   },
   "peerDependencies": {
-    "@apophis-sdk/core": "0.1.0-alpha.3",
+    "@apophis-sdk/core": "0.1.0-alpha.4",
     "typescript": "^5.0.0"
   },
   "devDependencies": {

@@ -28,18 +28,20 @@ mw.use(
         return bech32.encode(prefix, bech32.toWords(ethAddr));
       },
     },
-    protobuf: {
-      encode: (network: NetworkConfig, value: any) => {
-        if (network.name !== 'injective' || !pubkey.isSecp256k1(value)) return;
-        const bytes = Uint8Array.from([10, value.key.length, ...value.key]);
-        return Any('/injective.crypto.v1beta1.ethsecp256k1.PubKey', bytes);
-      },
-      decode: (network: NetworkConfig, value: any) => {
-        if (network.name !== 'injective') return;
-        if (value.typeUrl !== '/injective.crypto.v1beta1.ethsecp256k1.PubKey') return;
-        // magic type byte (fixed) + length (fixed) + key bytes (variable)
-        if (value.value[0] !== 10 || value.value[1] !== 33) throw Error('Invalid public key');
-        return pubkey.secp256k1(value.value.slice(2));
+    encoding: {
+      protobuf: {
+        encode: (network: NetworkConfig, value: any) => {
+          if (network.name !== 'injective' || !pubkey.isSecp256k1(value)) return;
+          const bytes = Uint8Array.from([10, value.key.length, ...value.key]);
+          return Any('/injective.crypto.v1beta1.ethsecp256k1.PubKey', bytes);
+        },
+        decode: (network: NetworkConfig, value: any) => {
+          if (network.name !== 'injective') return;
+          if (value.typeUrl !== '/injective.crypto.v1beta1.ethsecp256k1.PubKey') return;
+          // magic type byte (fixed) + length (fixed) + key bytes (variable)
+          if (value.value[0] !== 10 || value.value[1] !== 33) throw Error('Invalid public key');
+          return pubkey.secp256k1(value.value.slice(2));
+        },
       },
     },
   }
