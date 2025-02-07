@@ -25,10 +25,68 @@ When implementing the `connect` method, you should call the `_initSignData` meth
 At the end of the `connect` method, you should also call the `Cosmos.watchSigner(this)` method. While not strictly necessary, this will instruct the SDK to monitor the blockchain for new transactions made by the user and keep their account data in sync. This is particularly useful when the user executes transactions in another Dapp or otherwise outside of your control. It is safe to call `watchSigner` multiple times, it will not interfere with already watched signers.
 
 ## Frontend Integrations
-***TODO***
+Frontends do not have any special requirements. It is, however, advised to incorporate the Apophis SDK's signals into your frontend integration's components. This simplifies deep integration & reactivity throughout the Dapp.
 
 ## Chain Integrations
-Chain integrations are not currently supported yet. In future, they will be implemented to enable support for subtle changes between chains, such as [Injective's custom Token Factory module](https://docs.ts.injective.network/core-modules/token-factory) versus the [canonical Osmosis module](https://docs.osmosis.zone/osmosis-core/modules/tokenfactory/), differences in network transport protocols, or changes to JSON-RPC methods.
+Chain integrations are arguably the most complex type of integration, as they require a deep understanding of the underlying blockchain, and blockchains from different ecosystems are often so different that next to no code can be shared.
+
+To facilitate chain integrations, Apophis SDK defines two core design principles:
+
+1. **You know best.** The SDK employs a hyper-modular architecture, with packages building upon certain other packages. `@apophis-sdk/core` only contains the most basic functionality and shared types, such as Endpoint management, chain distinctions, and common encoding formats. Both you as the integration developer, and the user of the SDK, are required to explicitly know the ecosystem & its intricacies. The SDK does not provide a common basis for all supported blockchains, as this basis would be incredibly small.
+2. **Dynamic Middleware.** The SDK's middleware system is extremely flexible. Middleware modules are deeply partial nested collections of methods, and the root `mw` method helps invoking these collections of methods using different invocation strategies.
+
+### Middleware Strategies
+First, an example usage of the `mw` method:
+
+```typescript
+import { mw } from '@apophis-sdk/core/middleware.js';
+const addr = mw('addresses', 'compute').inv().fifo(network, publicKey);
+```
+
+In the above code, `mw('addresses', 'compute')` is fully typed and scopes into the appropriate middleware interface. `.inv()` then reverses the middleware iterator, looping over the registered middleware modules in reverse order. `.fifo()` then finally invokes each middleware module's corresponding method one by one with the provided arguments. `fifo` is the invocation strategy, thus indicating that the first middleware module which returns any value that is not `undefined` will be the value returned by the invocation.
+
+There are various invocation strategies:
+
+- `fifo` *"First In, First Out."* The first middleware module that returns a value (that is not `undefined`) will be the value returned by the invocation. Throws a `MiddlewarePipelineError` if no middleware module returns a value.
+- `fifoMaybe` - same as `fifo`, but the middleware stack is not required to return a value.
+- `transform` - calls each middleware module in turn, passing the result of each middleware to the next. These methods must return the same type than it they take as input. Likewise, the first passed-in value must be of the same type as well. If no middleware module was registered that handles this method, the input value is returned as is. This is effectively a specialization of the `reduce` strategy. It is used, for example, to transform an address into a human-readable alias, respecting different address books.
+- `notify` - calls each middleware module, awaiting all to complete. Return values and exceptions are ignored. It is intended to, for example, allow middleware to inject data or additional methods into newly created objects of interest.
+- `notifySync` - same as `notify`, but middleware modules must be synchronous.
+- `reduce` - calls each middleware module in turn, passing the result of each middleware to the next. The typing for this strategy is currently broken and uses `any` - use at your own risk.
+
+Default behavior is typically the first registered middleware module, thus, typically, you will want to `.inv()` the middleware stack first.
+
+### Extending Middleware
+The Middleware system is extremely flexible and built on the core principle of second-class typing. This means that the middleware pipeline itself is not typed, but you add a type definition on top of it & pretend it is. It is important that every layer of the middleware definition is built on `interface`s as these can be extended by third party packages. Nested objects must also use `interface`s, as nested objects embedded within an interface are implicitly `type`s, which cannot be extended.
+
+Following is an example of how the `@apophis-sdk/cosmos` package extends the middleware definition to add Amino encoding support:
+
+```typescript
+import { type CosmosNetworkConfig } from '@apophis-sdk/core';
+import { mw } from '@apophis-sdk/core/middleware.js';
+import { Amino } from './encoding.js';
+
+declare module '@apophis-sdk/core/middleware.js' {
+  interface MiddlewareEncoding {
+    amino: MiddlewareAmino;
+  }
+}
+
+export interface MiddlewareAmino {
+  encode(network: CosmosNetworkConfig, value: unknown): unknown;
+  decode(network: CosmosNetworkConfig, value: unknown): unknown;
+}
+
+mw.use({
+  encoding: {
+    amino: { encode: Amino.encode, decode: Amino.decode },
+  },
+});
+
+mw('encoding', 'amino', 'encode').fifo(network, { foo: 'bar' });
+```
+
+The `declare module` block is used to inject our new extension into the encoding middleware definition. The extension itself is unique to this sub-module, so it is exported from our own sub-module, so dependent packages may extend it as well if necessary. We then immediately define a default implementation for our new middleware module using the `mw.use` method.
 
 ## Account Index vs Number
 Within the framework (but not only here), *account index* & *account number* are two closely related yet very distinct terms.

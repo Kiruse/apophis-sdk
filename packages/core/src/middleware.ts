@@ -10,7 +10,7 @@ export interface Middleware {
   beta: MiddlewareBeta;
   /** `endpoints` middleware for retrieving & listing endpoints for a network. */
   endpoints: MiddlewareEndpoints;
-  protobuf: MiddlewareProtobuf;
+  encoding: MiddlewareEncoding;
 }
 
 export interface MiddlewareAddresses {
@@ -33,6 +33,11 @@ export interface MiddlewareEndpoints {
   list(network: CosmosNetworkConfig, which: CosmosEndpoint): string[];
   list(network: SolanaNetworkConfig, which: SolanaEndpoint): string[];
   list(network: NetworkConfig, which: string): string[];
+}
+
+/** Middleware for encoding & decoding values. */
+export interface MiddlewareEncoding {
+  protobuf: MiddlewareProtobuf;
 }
 
 export interface MiddlewareProtobuf {

@@ -80,7 +80,7 @@ Any.isAny = (value: any): value is Any => {
 /** Convert any compatible value to a `Any` type. */
 Any.encode = (network: NetworkConfig, value: any): Any => {
   if (isMarshalledAny(value)) return value;
-  const tmp = mw('protobuf', 'encode').fifoMaybe(network, value)
+  const tmp = mw('encoding', 'protobuf', 'encode').fifoMaybe(network, value)
     ?? Any.marshallers.get(network).marshal(value);
   if (Any.isAny(tmp)) return tmp;
   throw new Error('Invalid value for Any.encode');
@@ -89,7 +89,7 @@ Any.encode = (network: NetworkConfig, value: any): Any => {
 /** Convert any compatible value from an `Any` type. */
 Any.decode = (network: NetworkConfig, value: Any): unknown => {
   if (isMarshalledAny(value)) {
-    const result = mw('protobuf', 'decode').fifoMaybe(network, value)
+    const result = mw('encoding', 'protobuf', 'decode').fifoMaybe(network, value)
       ?? Any.marshallers.get(network).unmarshal(value);
     if (!isMarshalledAny(result)) return result;
   }

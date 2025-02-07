@@ -122,6 +122,7 @@ export class CosmWasmApi {
   query = new class {
     constructor(public readonly api: CosmWasmApi) {}
 
+    /** Query raw contract state using the `keypath`. Knowing the keypath requires deeper knowledge of the smart contract code. */
     async raw(network: CosmosNetworkConfig, contractAddress: string, keypath: string[] | Uint8Array) {
       if (!(keypath instanceof Uint8Array)) keypath = encodeKeypath(keypath);
       const key = keypath instanceof Uint8Array ? toBase64(keypath) : keypath;
@@ -132,6 +133,10 @@ export class CosmWasmApi {
 
     /** The smart query is the most common query type which defers to the smart contract.
      * Other types of queries exist but are currently not supported by *Apophis SDK*.
+     *
+     * You can get the binary representation of the query message using the `toBinary` method. The
+     * data returned depends on the smart contract code but is typically a JSON object, for which
+     * this method accepts a type parameter.
      */
     async smart<T = unknown>(network: CosmosNetworkConfig, contractAddress: string, queryMsg: Uint8Array) {
       const result = await Cosmos.rest(network).cosmwasm.wasm.v1.contract[contractAddress].smart[toBase64(queryMsg)]('GET');
@@ -144,6 +149,9 @@ export class CosmWasmApi {
     /** State is a rarely used query type which can be used to iterate over all state items of a
      * contract, whether they are exposed through smart queries or not. However, they also require
      * deeper knowledge of the contract's state structure and the cosmwasm-std specification.
+     *
+     * The `nextKey` parameter is used to paginate through the state items and is generally returned
+     * by the previous call to this method.
      */
     async state(network: CosmosNetworkConfig, contractAddress: string, nextKey: string = '') {
       const { models, pagination } = await Cosmos.rest(network).cosmwasm.wasm.v1.contract[contractAddress].state('GET', {
