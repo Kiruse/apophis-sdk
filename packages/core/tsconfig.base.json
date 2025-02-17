@@ -8,6 +8,7 @@
     "checkJs": false,
     "declaration": true,
     "importHelpers": true,
+    "skipLibCheck": true,
   },
   "exclude": ["dist/"]
 }

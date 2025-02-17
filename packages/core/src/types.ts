@@ -3,6 +3,8 @@ import type { Signer } from './signer.js';
 
 export { NetworkConfig };
 
+export type Bytes = Uint8Array;
+
 export interface ApophisConfig {
   /** Multiplier for the gas fee estimate to avoid under-estimation. Should generally be held low
    * to avoid overspending as, unlike Ethereum chains, Cosmos chains do not refund unused gas.
@@ -34,4 +36,3 @@ export interface TxBase {
   /** Broadcast this transaction to the network. */
   broadcast(): Promise<string>;
 }
-

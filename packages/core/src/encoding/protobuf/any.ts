@@ -1,14 +1,8 @@
-import { defineMarshalUnit, extendDefaultMarshaller, Marshaller, MarshalUnit, morph, pass } from '@kiruse/marshal';
-import { isAnyable, isMarshalledAny } from '../../helpers.js';
 import { mw } from '../../middleware.js';
 import type { NetworkConfig } from '../../types.js';
-import { fromBase64, toBase64 } from '../../utils.js';
+import { fromBase64 } from '../../utils.js';
 
-/** Marshal unit for converting an `Any` type to the proper JSON variant & back for transmission. */
-export const AnyMarshalUnit = defineMarshalUnit(
-  (value: any) => Any.isAny(value) ? morph({ typeUrl: value.typeUrl, value: toBase64(value.value) }) : pass,
-  (value: any) => isMarshalledAny(value) ? morph({ typeUrl: value.typeUrl, value: typeof value.value === 'string' ? fromBase64(value.value) : value.value }) : pass,
-);
+// TODO: implement protobuf wire format: https://protobuf.dev/programming-guides/encoding/
 
 export type Anylike = Any | MarshalledAny;
 
@@ -19,8 +13,8 @@ export type Any<T extends string = string> = {
 };
 
 /** Base64 encoded variant of `Any`. */
-export type MarshalledAny = {
-  typeUrl: string;
+export type MarshalledAny<T extends string = string> = {
+  typeUrl: T;
   value: string;
 };
 
@@ -29,70 +23,92 @@ export function Any(typeUrl: string, value: Uint8Array): Any {
   return { typeUrl, value };
 }
 
-/** The default marshal units to convert from & to the Protobuf `Any` type. You may add additional
- * units to this list to add new global marshal units.
- */
-Any.defaultMarshalUnits = new Array<MarshalUnit>();
-/** The default marshaller used when none is specified for a particular network. */
-Any.defaultMarshaller = extendDefaultMarshaller(Any.defaultMarshalUnits);
-
-/** Different marshallers for the Protobuf `Any` type, depending on the network. */
-Any.marshallers = new class {
-  #map = new Map<NetworkConfig, Marshaller>();
-
-  get(network: NetworkConfig): Marshaller {
-    return this.#map.get(network) ?? Any.defaultMarshaller;
-  }
-
-  set(network: NetworkConfig, marshaller: Marshaller) {
-    this.#map.set(network, marshaller);
-    return this;
-  }
-
-  delete(network: NetworkConfig) {
-    return this.#map.delete(network);
-  }
-
-  has(network: NetworkConfig) {
-    return this.#map.has(network);
-  }
-
-  keys() {
-    return this.#map.keys();
-  }
-
-  values() {
-    return this.#map.values();
-  }
-
-  entries() {
-    return this.#map.entries();
-  }
+export type ProtobufType<T1 extends string = string, T2 = any> = {
+  get protobufTypeUrl(): T1;
+  toProtobuf(value: T2): Uint8Array;
+  fromProtobuf(value: Uint8Array): T2;
 }
 
 /** Check if a value is a proper `Any` type. */
-Any.isAny = (value: any): value is Any => {
+Any.isAny = (value: any, typeUrl?: string): value is Any => {
   if (typeof value !== 'object' || value === null) return false;
-  if (typeof value.typeUrl !== 'string') return false;
+  if (typeUrl === undefined ? typeof value.typeUrl !== 'string' : value.typeUrl !== typeUrl) return false;
   return value.typeUrl.startsWith('/') && value.value instanceof Uint8Array;
 }
 
-/** Convert any compatible value to a `Any` type. */
-Any.encode = (network: NetworkConfig, value: any): Any => {
-  if (isMarshalledAny(value)) return value;
-  const tmp = mw('encoding', 'protobuf', 'encode').fifoMaybe(network, value)
-    ?? Any.marshallers.get(network).marshal(value);
-  if (Any.isAny(tmp)) return tmp;
-  throw new Error('Invalid value for Any.encode');
+/** Check if a value is a proper marshalled `Any` type (value is a b64 string of the bytes). */
+Any.isMarshalled = (value: any, typeUrl?: string): value is MarshalledAny => {
+  if (typeof value !== 'object' || value === null) return false;
+  if (typeUrl === undefined ? typeof value.typeUrl !== 'string' : value.typeUrl !== typeUrl) return false;
+  return value.typeUrl.startsWith('/') && typeof value.value === 'string';
 }
 
-/** Convert any compatible value from an `Any` type. */
-Any.decode = (network: NetworkConfig, value: Any): unknown => {
-  if (isMarshalledAny(value)) {
-    const result = mw('encoding', 'protobuf', 'decode').fifoMaybe(network, value)
-      ?? Any.marshallers.get(network).unmarshal(value);
-    if (!isMarshalledAny(result)) return result;
+/** Encode any compatible value to an `Any` type. Network dependent.
+ *
+ * **Note:** This function delegates to the `encoding` middleware, thus you may specialize its
+ * implementation for a network by adding a custom middleware.
+ */
+Any.encode = (network: NetworkConfig, value: any): Any => {
+  if (Any.isAny(value)) return value;
+  if (Any.isMarshalled(value)) {
+    return {
+      typeUrl: value.typeUrl,
+      value: fromBase64(value.value),
+    };
   }
-  if (isAnyable(value)) return value;
-  throw new Error('Invalid value for Any.decode');
+
+  const result = mw('encoding', 'encode').inv().fifo(network, 'protobuf', value);
+  if (!Any.isAny(result)) throw new Error('Invalid value for Any.encode');
+  return result;
 }
+
+/** Decode an `Any` type to its original value. Network dependent.
+ *
+ * **Note:** This function delegates to the `encoding` middleware, thus you may specialize its
+ * implementation for a network by adding a custom middleware.
+ */
+Any.decode = (network: NetworkConfig, value: Any): unknown => {
+  if (Any.isMarshalled(value)) {
+    value = {
+      typeUrl: value.typeUrl,
+      value: fromBase64(value.value),
+    };
+  }
+  if (!Any.isAny(value)) throw new Error('Invalid value for Any.decode');
+  return mw('encoding', 'decode').inv().fifo(network, 'protobuf', value);
+}
+
+var defaultProtobufTypes: Record<string, ProtobufType> = {};
+export function registerDefaultProtobufs(...types: ProtobufType[]) {
+  for (const type of types) {
+    if (type.protobufTypeUrl in defaultProtobufTypes) console.warn(`Default protobuf type ${type.protobufTypeUrl} already defined. Overriding.`);
+    defaultProtobufTypes[type.protobufTypeUrl] = type;
+  }
+}
+
+mw.use({
+  encoding: {
+    encode: (network: NetworkConfig, encoding: string, value: any) => {
+      if (encoding !== 'protobuf' || typeof value !== 'object') return;
+      const type = defaultProtobufTypes[value?.protobufTypeUrl ?? value?.constructor?.protobufTypeUrl];
+      if (!type) return;
+      return {
+        typeUrl: type.protobufTypeUrl,
+        value: type.toProtobuf(value),
+      };
+    },
+    decode: (network: NetworkConfig, encoding: string, value: unknown) => {
+      if (encoding !== 'protobuf') return;
+      if (Any.isMarshalled(value)) {
+        value = {
+          typeUrl: value.typeUrl,
+          value: fromBase64(value.value),
+        };
+      }
+      if (!Any.isAny(value)) return;
+      const type = defaultProtobufTypes[value.typeUrl];
+      if (!type) return;
+      return type.fromProtobuf(value.value);
+    },
+  },
+});

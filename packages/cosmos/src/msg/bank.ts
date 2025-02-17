@@ -1,41 +1,33 @@
-import { defineMarshalUnit, morph, pass } from '@kiruse/marshal';
-import { Any } from '@apophis-sdk/core/encoding/protobuf/any.js';
-import { isMarshalledAny } from '@apophis-sdk/core/helpers.js';
-import type { NetworkConfig } from '@apophis-sdk/core/networks.js';
+import { registerDefaultProtobufs } from '@apophis-sdk/core/encoding/protobuf/any.js';
 import type { Coin } from 'cosmjs-types/cosmos/base/v1beta1/coin';
 import { MsgSend } from 'cosmjs-types/cosmos/bank/v1beta1/tx';
+import { registerDefaultAminos } from '../encoding/amino';
+
+export type BankSendData = {
+  fromAddress: string;
+  toAddress: string;
+  amount: Coin[];
+}
 
 export class BankSendMsg {
-  static typeUrl = '/cosmos.bank.v1beta1.MsgSend';
+  static readonly protobufTypeUrl = '/cosmos.bank.v1beta1.MsgSend';
+  static readonly aminoTypeUrl = 'cosmos-sdk/MsgSend';
 
-  constructor(public fromAddress: string, public toAddress: string, public amount: Coin[]) {}
+  constructor(public data: BankSendData) {}
 
-  /** Convenience method to convert this `BankSendMsg` into a protobuf `Any` type. To convert back, use `Any.decode`. */
-  toAny(network: NetworkConfig) { return Any.encode(network, this) }
-
-  /** Encode a wrapped `BankSendMsg` into a standard Cosmos SDK Bank Send message. */
-  static encode(value: BankSendMsg) {
-    return MsgSend.encode(value).finish();
+  static toProtobuf(value: BankSendMsg): Uint8Array {
+    return MsgSend.encode(value.data).finish();
   }
 
-  /** Decode a standard Cosmos SDK Bank Send message into a wrapped `BankSendMsg`. */
-  static decode(value: Uint8Array) {
+  static fromProtobuf(value: Uint8Array): BankSendMsg {
     const { fromAddress, toAddress, amount } = MsgSend.decode(value);
-    return new BankSendMsg(fromAddress, toAddress, amount);
+    return new BankSendMsg({ fromAddress, toAddress, amount });
   }
 }
 
-/** Marshal Unit to convert `SendMessage` to `Any` */
-export const SendMessageMarshalUnit = defineMarshalUnit(
-  (value: any) => value instanceof BankSendMsg
-    ? morph({
-        typeUrl: BankSendMsg.typeUrl,
-        value: BankSendMsg.encode(value),
-      })
-    : pass,
-  (value: any) => isMarshalledAny(value, BankSendMsg.typeUrl)
-    ? morph(BankSendMsg.decode(value.value))
-    : pass,
-);
+registerDefaultProtobufs(BankSendMsg);
+registerDefaultAminos(BankSendMsg);
 
-Any.defaultMarshalUnits.push(SendMessageMarshalUnit);
+export namespace Bank {
+  export const Send = BankSendMsg;
+}

@@ -1,19 +1,5 @@
 import { type CosmosEndpoint, type CosmosEndpoints, type CosmosNetworkConfig } from '@apophis-sdk/core';
 import { mw } from '@apophis-sdk/core/middleware.js';
-import { Amino } from './encoding.js';
-
-declare module '@apophis-sdk/core/middleware.js' {
-  interface MiddlewareEncoding {
-    amino: MiddlewareAmino;
-  }
-}
-
-export interface MiddlewareAmino {
-  /** `fifo` endpoint to encode the given value, if possible. */
-  encode(network: CosmosNetworkConfig, value: unknown): unknown;
-  /** `fifo` endpoint to decode the given value, if possible. */
-  decode(network: CosmosNetworkConfig, value: unknown): unknown;
-}
 
 const store = new Map<CosmosNetworkConfig, CosmosEndpoints>();
 
@@ -30,9 +16,6 @@ export function setEndpoint(network: CosmosNetworkConfig, which: CosmosEndpoint,
 
 mw.use({
   endpoints: { get, list },
-  encoding: {
-    amino: { encode: Amino.encode, decode: Amino.decode },
-  },
 });
 
 function get(network: CosmosNetworkConfig, which: CosmosEndpoint): string | undefined {

@@ -1,3 +1,4 @@
+import { type FungibleAsset } from '@apophis-sdk/core';
 import { addresses } from '@apophis-sdk/core/address.js';
 import { Any } from '@apophis-sdk/core/encoding/protobuf/any.js';
 import { endpoints } from '@apophis-sdk/core/endpoints.js';
@@ -19,18 +20,17 @@ import {
   type TransactionEventRaw,
   type TransactionResponse,
   type WS,
+  Gas,
 } from '@apophis-sdk/core/types.sdk.js';
-import { fromBase64, fromHex, fromSdkPublicKey, getRandomItem, toBase64, toHex } from '@apophis-sdk/core/utils.js';
+import { fromBase64, fromHex, fromSdkPublicKey, toBase64 } from '@apophis-sdk/core/utils.js';
 import { extendDefaultMarshaller, RecaseMarshalUnit } from '@kiruse/marshal';
 import { restful } from '@kiruse/restful';
 import { Event } from '@kiruse/typed-events';
 import { recase } from '@kristiandupont/recase';
-import { sha256 } from '@noble/hashes/sha256';
 import { Coin } from 'cosmjs-types/cosmos/base/v1beta1/coin.js';
-import { Fee, Tx as SdkTx, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
+import { Tx as SdkTxDirect } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { BlockID } from 'cosmjs-types/tendermint/types/types.js';
-import { CosmosTx } from './tx.js';
-import { FungibleAsset } from '@apophis-sdk/core';
+import { type CosmosTx, CosmosTxAmino, CosmosTxDirect, CosmosTxEncoding } from './tx.js';
 
 type Unsub = () => void;
 
@@ -201,7 +201,10 @@ export const Cosmos = new class {
   }
 
   /** Create a new transaction with the given messages. */
-  tx = (messages: Any[], opts?: Omit<TxBody, 'messages'> & { gas?: Fee }) => new CosmosTx(messages, opts);
+  tx = (messages: Any[], { encoding, ...opts }: { gas?: Gas, encoding?: CosmosTxEncoding } = {}) =>
+    encoding === 'protobuf'
+      ? new CosmosTxDirect(messages, opts)
+      : new CosmosTxAmino(messages, opts);
   coin = (amount: bigint | number, denom: string): Coin => Coin.fromPartial({ amount: amount.toString(), denom });
 
   /** Broadcast a transaction to the network. If `async` is true, will not wait for inclusion in a
@@ -272,34 +275,19 @@ export const Cosmos = new class {
    * from `cosmjs-types/cosmos/tx/v1beta1/tx` which is directly built from the Cosmos SDK protobuf
    * definitions.
    */
-  decodeTx(tx: SdkTx | string | Uint8Array) {
+  decodeTx(tx: SdkTxDirect | string | Uint8Array) {
     if (typeof tx === 'string') tx = fromBase64(tx);
-    if (tx instanceof Uint8Array) return SdkTx.decode(tx);
+    if (tx instanceof Uint8Array) return SdkTxDirect.decode(tx);
     return tx;
   }
 
   /** Wrapper around `decodeTx` that attempts to decode the tx. If it fails, returns the original tx bytes. */
-  tryDecodeTx(tx: SdkTx | string | Uint8Array) {
+  tryDecodeTx(tx: SdkTxDirect | string | Uint8Array) {
     try {
       return this.decodeTx(tx);
     } catch {
       return typeof tx === 'string' ? tx : tx instanceof Uint8Array ? toBase64(tx) : tx;
     }
-  }
-
-  /** Helper function to compute the transaction hash of a Cosmos SDK transaction. This hash can then
-   * be used to query the transaction on the blockchain.
-   */
-  getTxHash(tx: SdkTx | string) {
-    let bytes: Uint8Array;
-    if (typeof tx === 'string') {
-      bytes = fromBase64(tx);
-    } else {
-      bytes = SdkTx.encode(tx).finish();
-    }
-
-    const buffer = sha256(bytes);
-    return toHex(new Uint8Array(buffer));
   }
 
   /** Search a list of `CosmosEvent`s for a particular event/attribute. The result is a list of all
@@ -414,9 +402,10 @@ export class CosmosWebSocket {
                 index: tx.index,
               });
             } else {
+              console.log('cosmos tx string', tx.tx);
               this.#subs[result.id]?.callback({
                 height: tx.height,
-                txhash: await Cosmos.getTxHash(tx.tx),
+                txhash: CosmosTxDirect.computeHash(tx.tx),
                 index: tx.index,
                 result: tx.result,
                 tx: Cosmos.decodeTx(tx.tx),

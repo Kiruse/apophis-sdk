@@ -37,12 +37,8 @@ export interface MiddlewareEndpoints {
 
 /** Middleware for encoding & decoding values. */
 export interface MiddlewareEncoding {
-  protobuf: MiddlewareProtobuf;
-}
-
-export interface MiddlewareProtobuf {
-  encode(network: NetworkConfig, value: any): Any;
-  decode(network: NetworkConfig, value: Any): any;
+  encode(network: NetworkConfig, encoding: string, value: unknown): unknown;
+  decode(network: NetworkConfig, encoding: string, value: unknown): unknown;
 }
 
 export type MiddlewareImpl = DeepPartial<Middleware>;
@@ -140,7 +136,15 @@ class MiddlewarePipeline<KP extends string[]> {
 }
 
 mw.stack = middlewares;
-mw.use = (...mws: MiddlewareImpl[]) => middlewares.push(...mws as Middleware[]);
+mw.use = (...mws: MiddlewareImpl[]) => {
+  middlewares.push(...mws as Middleware[]);
+  return () => {
+    for (const curr of mws) {
+      const index = middlewares.indexOf(curr as Middleware);
+      if (index !== -1) middlewares.splice(index, 1);
+    }
+  };
+};
 
 function* forwardIterator(extract: (mw: MiddlewareImpl) => any) {
   for (const mw of middlewares) {

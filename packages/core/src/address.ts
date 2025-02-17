@@ -1,7 +1,5 @@
-import { ripemd160 } from '@noble/hashes/ripemd160';
-import { sha256 } from '@noble/hashes/sha256';
 import { base58, bech32 } from '@scure/base';
-import { CosmosNetworkConfig, NetworkConfig, SolanaNetworkConfig } from './networks';
+import { NetworkConfig, SolanaNetworkConfig } from './networks';
 import { type MiddlewareAddresses, type MiddlewareImpl, mw } from './middleware';
 import { DeepPartial } from 'cosmjs-types';
 import { pubkey, PublicKey } from './crypto/pubkey';
@@ -92,30 +90,11 @@ export function trimAddress(address: string, trimSize: number) {
   return `${prefix}${address.slice(0, trimSize)}…${address.slice(-trimSize)}`;
 }
 
-/** Default middleware that computes the address using the default Cosmos SDK / Solana algorithm. */
-mw.use({
-  addresses: {
-    compute: (network: NetworkConfig, publicKey: PublicKey) => {
-      switch (network.ecosystem) {
-        case 'cosmos': return computeCosmosAddress(network, publicKey);
-        case 'solana': return computeSolanaAddress(network, publicKey);
-        default: throw new Error('Unsupported ecosystem');
-      }
-    },
-  },
-});
-
-function computeCosmosAddress(network: CosmosNetworkConfig, publicKey: PublicKey) {
-  if (!pubkey.isSecp256k1(publicKey)) throw new Error('Invalid pubkey type, expected secp256k1');
-  if (publicKey.key.length !== 33) throw new Error('Invalid pubkey length, expected 33');
-  const prefix = network.addressPrefix;
-  return bech32.encode(prefix, bech32.toWords(ripemd160(sha256(publicKey.key))));
-}
-
+// TODO: move to `@apophis-sdk/solana` whenever we finally create it
 function computeSolanaAddress(network: SolanaNetworkConfig, publicKey: PublicKey) {
   // see https://chainstack.com/how-do-ethereum-and-solana-generate-public-and-private-keys/#7-generating-account-address-from-private-key-for-solana
   // for the algorithm to derive address from private key
-  if (!pubkey.isSecp256k1(publicKey)) throw new Error('Invalid pubkey type, expected secp256k1');
-  if (publicKey.key.length !== 32) throw new Error('Invalid pubkey length, expected 32');
-  return base58.encode(publicKey.key);
+  if (publicKey.type !== 'secp256k1') throw new Error('Invalid pubkey type, expected secp256k1');
+  if (publicKey.bytes.length !== 32) throw new Error('Invalid pubkey length, expected 32');
+  return base58.encode(publicKey.bytes);
 }

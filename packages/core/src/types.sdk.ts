@@ -1,11 +1,10 @@
 // The types here are directly related to Cosmos SDK types.
 import type { RestMethods } from '@kiruse/restful';
-import type { Coin } from 'cosmjs-types/cosmos/base/v1beta1/coin';
 import { BroadcastMode } from 'cosmjs-types/cosmos/tx/v1beta1/service.js';
 import type { Tx as CosmosTransaction } from 'cosmjs-types/cosmos/tx/v1beta1/tx.js';
 import type { Protobuf } from './encoding';
 
-export { BroadcastMode, Coin, CosmosTransaction };
+export { BroadcastMode, CosmosTransaction };
 
 export interface Block {
   header: BlockHeader;
@@ -71,6 +70,11 @@ export interface BlockSignature {
   timestamp: Date;
   /** Signature base64 bytes */
   signature: string;
+}
+
+export interface Coin {
+  denom: string;
+  amount: bigint;
 }
 
 export type Evidence = unknown;
