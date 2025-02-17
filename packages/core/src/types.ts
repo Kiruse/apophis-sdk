@@ -3,6 +3,11 @@ import type { Signer } from './signer.js';
 
 export { NetworkConfig };
 
+/** The SDK generally marshals Bytes to base64 strings, but due to loss of information, it cannot
+ * unmarshal them back to their original Uint8Array form, hence this type describes both.
+ */
+export type Bytes = Uint8Array | string;
+
 export interface ApophisConfig {
   /** Multiplier for the gas fee estimate to avoid under-estimation. Should generally be held low
    * to avoid overspending as, unlike Ethereum chains, Cosmos chains do not refund unused gas.
@@ -34,4 +39,3 @@ export interface TxBase {
   /** Broadcast this transaction to the network. */
   broadcast(): Promise<string>;
 }
-

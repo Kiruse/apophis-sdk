@@ -3,7 +3,8 @@ import { base64 } from '@scure/base';
 import { PubKey as SdkEd25519PublicKey } from 'cosmjs-types/cosmos/crypto/ed25519/keys';
 import { PubKey as SdkSecp256k1PublicKey } from 'cosmjs-types/cosmos/crypto/secp256k1/keys';
 import { pubkey, PublicKey } from './crypto/pubkey';
-import { type Anylike } from './encoding/protobuf/any';
+import type { Anylike } from './encoding/protobuf/any';
+import type { Bytes } from './types';
 
 export function fromBase64(data: string): Uint8Array {
   return base64.decode(data);
@@ -31,6 +32,8 @@ export function fromUtf8(utf8: string): Uint8Array {
 export function toUtf8(bytes: Uint8Array): string {
   return new TextDecoder().decode(bytes);
 }
+
+export const bytes = (bytes: Bytes): Uint8Array => typeof bytes === 'string' ? fromBase64(bytes) : bytes;
 
 export const getFirstSignal = <T>(signals: (Signal<T | undefined | null> | undefined | null)[]): T | undefined =>
   signals.find(signal => signal?.value)?.value ?? undefined;

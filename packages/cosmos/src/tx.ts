@@ -1,34 +1,37 @@
-import { Any, config, type CosmosNetworkConfig, type Signer, TxBase, TxStatus } from '@apophis-sdk/core';
+import { Any, Bytes, config, type CosmosNetworkConfig, type Signer, TxBase, TxStatus } from '@apophis-sdk/core';
 import type { Gas } from '@apophis-sdk/core/types.sdk.js';
+import { extendDefaultMarshaller } from '@kiruse/marshal';
 import { Decimal } from '@kiruse/decimal';
 import { sha256 } from '@noble/hashes/sha256';
-import { AuthInfo, Tx as SdkTx, SignDoc, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
+import { AuthInfo, Tx as SdkTxDirect, SignDoc, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { SignMode } from 'cosmjs-types/cosmos/tx/signing/v1beta1/signing';
 import { Cosmos } from './api';
+import { fromBase64, fromUtf8, toHex } from '@apophis-sdk/core/utils.js';
+import { mw } from '@apophis-sdk/core/middleware.js';
+import { Amino } from './encoding/amino';
 
 /** The format of a Cosmos transaction. Of the two formats, `protobuf` is the default, and `amino`
  * is deprecated. Not all messages support the `amino` format as it has painful limitations. When
  * possible, use `protobuf`. However, the Ledger hardware wallet only supports `amino`, which
  * unfortunately means that not all transactions can be signed with a Ledger device.
  */
-export type CosmosTxFormat = 'protobuf' | 'amino';
+export type CosmosTxEncoding = 'protobuf' | 'amino';
 
-export interface TxOptions extends Partial<Omit<TxBody, 'messages'>> {
+export interface DirectTxOptions extends Partial<Omit<TxBody, 'messages'>> {
   gas?: Gas;
 }
 
-/** A transaction builder which accumulates data throughout the various steps of the transaction life cycle. */
-export class CosmosTx implements TxBase {
+export interface AminoTxOptions {
+  gas?: Gas;
+  memo?: string;
+}
+
+export type CosmosTx = CosmosTxDirect | CosmosTxAmino;
+
+const TxMarshaller = extendDefaultMarshaller([]);
+
+export abstract class CosmosTxBase<SdkTx> implements TxBase {
   readonly ecosystem = 'cosmos';
-  /** This is currently just a placeholder for near-future implementation. In the future, changing
-   * this format value will automatically change the signing flow accordingly.
-   */
-  format: CosmosTxFormat = 'protobuf';
-  extensionOptions: Any[] = [];
-  nonCriticalExtensionOptions: Any[] = [];
-  memo = '';
-  /** Typically, timeout height of 0 is synonymous with "no timeout". */
-  timeoutHeight = 0n;
   #status: TxStatus = 'unsigned';
   #signer: Signer | undefined;
   #signature: Uint8Array | undefined;
@@ -36,19 +39,14 @@ export class CosmosTx implements TxBase {
   #hash: string | undefined;
   #error: string | undefined;
   gas: Gas | undefined;
+  memo = '';
 
-  constructor(public messages: Any[] = [], opts?: TxOptions) {
-    this.gas = opts?.gas;
-    this.extensionOptions = opts?.extensionOptions ?? [];
-    this.nonCriticalExtensionOptions = opts?.nonCriticalExtensionOptions ?? [];
-    this.memo = opts?.memo ?? '';
-    this.timeoutHeight = opts?.timeoutHeight ?? 0n;
-  }
+  abstract get encoding(): CosmosTxEncoding;
 
-  setSignature(network: CosmosNetworkConfig, signer: Signer<any>, signature: Uint8Array): this {
+  setSignature(network: CosmosNetworkConfig, signer: Signer<any>, signature: Uint8Array) {
+    this.#network = network;
     this.#signer = signer;
     this.#signature = signature;
-    this.#network = network;
     return this;
   }
 
@@ -62,31 +60,21 @@ export class CosmosTx implements TxBase {
     const gas = Decimal.parse(size);
     const amount = gas.mul(Decimal.parse(cfg.lowPrice ?? cfg.avgPrice)).rebase(0).valueOf() + 1n;
     const result = {
-      amount: [Cosmos.coin(amount, cfg.asset.denom)],
+      amount: [{ denom: cfg.asset.denom, amount }],
       gasLimit: gas.valueOf(),
     } satisfies Gas;
     if (populate) this.gas = result;
     return result;
   }
 
-  confirm(hash: string) {
-    this.#status = 'confirmed';
-    this.#hash = hash;
-  }
-
-  reject(hash: string, error: string) {
-    this.#status = 'failed';
-    this.#hash = hash;
-    this.#error = error;
-  }
-
   /** Non-interface method to simulate this transaction. `estimateGas` extracts the `gas_info` from this method's result. */
   simulate(network: CosmosNetworkConfig, signer: Signer) {
     return Cosmos.rest(network).cosmos.tx.v1beta1.simulate('POST', {
-      tx_bytes: SdkTx.encode(this.sdkTx(network, signer)).finish(),
+      tx_bytes: this.sdkTxBytes(network, signer),
     });
   }
 
+  /** Estimate gas consumption this TX would require, and optionally populate the `gas` field. */
   async estimateGas(network: CosmosNetworkConfig, signer: Signer, populate?: boolean): Promise<Gas> {
     const { gas_info } = await this.simulate(network, signer);
     if (!gas_info) throw new Error('Failed to simulate transaction');
@@ -94,10 +82,72 @@ export class CosmosTx implements TxBase {
     return this.computeGas(network, units.valueOf(), populate);
   }
 
-  /** Convenience method to broadcast this transaction to the network. Calls the signer's `broadcast` method. */
-  broadcast() {
+  confirm(hash: string): void {
+    this.#status = 'confirmed';
+    this.#hash = hash;
+  }
+
+  reject(hash: string, error: string): void {
+    this.#status = 'failed';
+    this.#hash = hash;
+    this.#error = error;
+  }
+
+  broadcast(): Promise<string> {
     if (!this.#signer) throw new Error('Signer not bound');
     return this.#signer.broadcast(this);
+  }
+
+  abstract signBytes(network: CosmosNetworkConfig, signer: Signer): Uint8Array;
+  abstract sdkTx(network: CosmosNetworkConfig, signer: Signer, signature?: Uint8Array): SdkTx;
+  abstract sdkTxBytes(network: CosmosNetworkConfig, signer: Signer, signature?: Uint8Array): Uint8Array;
+
+  fullSdkTx() {
+    if (!this.gas) throw new Error('Gas not set');
+    if (!this.signer || !this.signature || !this.network) throw new Error('Signature not bound');
+    return this.sdkTx(this.network, this.signer, this.signature);
+  }
+
+  /** Get the full bytes of this transaction. Requires signature and gas. */
+  abstract bytes(): Uint8Array;
+
+  static computeHash(tx: CosmosTx | string) {
+    let hash: Bytes;
+    if (typeof tx === 'string') {
+      if (tx.startsWith('{') && tx.endsWith('}')) {
+        hash = sha256(tx);
+      } else {
+        hash = sha256(fromBase64(tx));
+      }
+    } else {
+      hash = sha256(tx.bytes());
+    }
+    return toHex(hash);
+  }
+
+  get status(): TxStatus { return this.#status }
+  get signer(): Signer<TxBase> | undefined { return this.#signer }
+  get signature(): Uint8Array | undefined { return this.#signature }
+  get network(): CosmosNetworkConfig | undefined { return this.#network }
+  get hash(): string { return this.#hash ?? CosmosTxBase.computeHash(this as any) }
+  get error(): string | undefined { return this.#error }
+}
+
+/** A transaction builder which accumulates data throughout the various steps of the transaction life cycle. */
+export class CosmosTxDirect extends CosmosTxBase<SdkTxDirect> {
+  readonly encoding = 'protobuf';
+  extensionOptions: Any[] = [];
+  nonCriticalExtensionOptions: Any[] = [];
+  /** Typically, timeout height of 0 is synonymous with "no timeout". */
+  timeoutHeight = 0n;
+
+  constructor(public messages: Any[] = [], opts?: DirectTxOptions) {
+    super();
+    this.gas = opts?.gas;
+    this.extensionOptions = opts?.extensionOptions ?? [];
+    this.nonCriticalExtensionOptions = opts?.nonCriticalExtensionOptions ?? [];
+    this.memo = opts?.memo ?? '';
+    this.timeoutHeight = opts?.timeoutHeight ?? 0n;
   }
 
   /** The SignDoc is the 2nd step in the transaction process:
@@ -118,11 +168,15 @@ export class CosmosTx implements TxBase {
     });
   }
 
+  signBytes(network: CosmosNetworkConfig, signer: Signer): Uint8Array {
+    return sha256(SignDoc.encode(this.signDoc(network, signer)).finish());
+  }
+
   /** Get a partial Cosmos SDK Tx object. This does not require gas or signature, in which case it can be used for simulation (including gas estimation). */
-  sdkTx(network: CosmosNetworkConfig, signer: Signer, signature = new Uint8Array()): SdkTx {
+  sdkTx(network: CosmosNetworkConfig, signer: Signer, signature: Uint8Array = new Uint8Array()): SdkTxDirect {
     const { publicKey, sequence } = signer.getSignData(network)[0];
     if (!network || !publicKey) throw new Error('Account not bound');
-    return SdkTx.fromPartial({
+    return SdkTxDirect.fromPartial(TxMarshaller.marshal({
       body: {
         messages: this.messages.map(msg => Any.encode(network, msg)),
         extensionOptions: this.extensionOptions,
@@ -143,27 +197,88 @@ export class CosmosTx implements TxBase {
         fee: this.gas ?? {},
       },
       signatures: [signature],
-    });
+    }) as any);
   }
 
-  fullSdkTx(): SdkTx {
-    if (!this.gas) throw new Error('Gas not set');
-    if (!this.#signer || !this.#signature || !this.#network) throw new Error('Signature not bound');
-    return this.sdkTx(this.#network, this.#signer, this.#signature);
-  }
-
-  signBytes(network: CosmosNetworkConfig, signer: Signer): Uint8Array {
-    return sha256(SignDoc.encode(this.signDoc(network, signer)).finish());
+  sdkTxBytes(network: CosmosNetworkConfig, signer: Signer, signature?: Uint8Array): Uint8Array {
+    return SdkTxDirect.encode(this.sdkTx(network, signer, signature)).finish();
   }
 
   bytes(): Uint8Array {
-    return SdkTx.encode(this.fullSdkTx()).finish();
+    return SdkTxDirect.encode(this.fullSdkTx()).finish();
   }
 
-  get status(): TxStatus { return this.#status }
-  get signer() { return this.#signer }
-  get network() { return this.#network }
-  get signature(): Uint8Array | undefined { return this.#signature }
-  get hash() { return this.#hash ?? Cosmos.getTxHash(this.fullSdkTx()) }
-  get error() { return this.#error }
+  static computeHash(tx: CosmosTxDirect | string) {
+    let bytes: Uint8Array;
+    if (typeof tx === 'string') {
+      bytes = fromBase64(tx);
+    } else {
+      bytes = SdkTxDirect.encode(tx.fullSdkTx()).finish();
+    }
+
+    const buffer = sha256(bytes);
+    return toHex(new Uint8Array(buffer));
+  }
+}
+
+export class CosmosTxAmino extends CosmosTxBase<object> {
+  readonly encoding = 'amino';
+
+  constructor(public messages: any[] = [], opts?: AminoTxOptions) {
+    super();
+    this.memo = opts?.memo ?? '';
+    this.gas = opts?.gas;
+  }
+
+  signDoc(network: CosmosNetworkConfig, signer: Signer) {
+    const signData = signer.getSignData(network)[0];
+    if (!signData) throw new Error('Signer not bound');
+    const mwstack = mw('encoding', 'encode').inv();
+    return Amino.normalize({
+      chainId: network.chainId,
+      accountNumber: signData.accountNumber,
+      sequence: signData.sequence,
+      fee: this.gas ?? {},
+      memo: this.memo,
+      msgs: this.messages.map(msg => mwstack.fifo(network, 'amino', msg)),
+    });
+  }
+
+  signBytes(network: CosmosNetworkConfig, signer: Signer): Uint8Array {
+    return sha256(JSON.stringify(this.signDoc(network, signer)));
+  }
+
+  sdkTx(network: CosmosNetworkConfig, signer: Signer, signature: Uint8Array = new Uint8Array()) {
+    const mwstack = mw('encoding', 'encode').inv();
+    const signatures = signature.length ? [{
+      pubKey: Amino.encode(network, signer.getSignData(network)[0].publicKey),
+      signature,
+    }] : [];
+    return Amino.normalize({
+      msg: this.messages.map(msg => mwstack.fifo(network, 'amino', msg)),
+      fee: this.gas ?? {},
+      memo: this.memo,
+      signatures,
+    });
+  }
+
+  sdkTxBytes(network: CosmosNetworkConfig, signer: Signer, signature?: Uint8Array): Uint8Array {
+    return fromUtf8(JSON.stringify(this.sdkTx(network, signer, signature)));
+  }
+
+  bytes(): Uint8Array {
+    return fromUtf8(JSON.stringify(this.fullSdkTx()));
+  }
+
+  static computeHash(tx: CosmosTxAmino | string) {
+    let bytes: Uint8Array;
+    if (typeof tx === 'string') {
+      bytes = fromUtf8(tx);
+    } else {
+      bytes = tx.bytes();
+    }
+
+    const buffer = sha256(bytes);
+    return toHex(new Uint8Array(buffer));
+  }
 }

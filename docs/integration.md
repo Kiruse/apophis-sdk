@@ -88,6 +88,9 @@ mw('encoding', 'amino', 'encode').fifo(network, { foo: 'bar' });
 
 The `declare module` block is used to inject our new extension into the encoding middleware definition. The extension itself is unique to this sub-module, so it is exported from our own sub-module, so dependent packages may extend it as well if necessary. We then immediately define a default implementation for our new middleware module using the `mw.use` method.
 
+### Integrating new Amino Types
+Amino is a vastly simpler encoding format than protobuf. Accordingly, integrating types is generally much easier. The Apophis SDK foresees that messages are defined as classes, which allows it to provide various assertions for type safety and normalization.
+
 ## Account Index vs Number
 Within the framework (but not only here), *account index* & *account number* are two closely related yet very distinct terms.
 

@@ -1,33 +1,18 @@
 import { addresses } from '@apophis-sdk/core/address.js';
 import { pubkey } from '@apophis-sdk/core/crypto/pubkey.js';
-import { Any } from '@apophis-sdk/core/encoding/protobuf/any.js';
-import { type FungibleAsset } from '@apophis-sdk/core/networks.js';
+import { Any, MarshalledAny } from '@apophis-sdk/core/encoding/protobuf/any.js';
+import { type CosmosNetworkConfig } from '@apophis-sdk/core/networks.js';
 import { Signer } from '@apophis-sdk/core/signer.js';
-import type { NetworkConfig } from '@apophis-sdk/core/types.js';
+import { network } from '@apophis-sdk/core/test-helpers.js';
 import { sha256 } from '@noble/hashes/sha256';
 import * as secp256k1 from '@noble/secp256k1';
 import { describe, expect, test } from 'bun:test';
 import { SignMode } from 'cosmjs-types/cosmos/tx/signing/v1beta1/signing.js';
 import { Tx as SdkTx } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
-import { Cosmos } from './api.js';
-import { CosmosTx } from './tx.js';
-
-const asset: FungibleAsset = {
-  denom: 'tntrn',
-  name: 'Test Neutron',
-};
-
-const network: NetworkConfig = {
-  chainId: 'neutron-1',
-  prettyName: 'Neutron',
-  name: 'neutron',
-  assets: [asset],
-  gas: [{
-    asset,
-    avgPrice: 0.0053,
-  }],
-  addressPrefix: 'neutron',
-};
+import { CosmosTx, CosmosTxAmino, CosmosTxDirect } from './tx.js';
+import './crypto/pubkey.js'; // for pubkey & address middlewares
+import { toBase64 } from '@apophis-sdk/core/utils.js';
+import { Amino } from './encoding/amino.js';
 
 class MockSigner extends Signer {
   readonly type = 'mock';
@@ -52,8 +37,8 @@ class MockSigner extends Signer {
 
   async connect() {}
 
-  async sign(network: NetworkConfig, tx: CosmosTx) {
-    const bytes = sha256(tx.signBytes(network, this));
+  async sign(network: CosmosNetworkConfig, tx: CosmosTx) {
+    const bytes = tx.signBytes(network, this);
     const signature = await secp256k1.signAsync(bytes, this.privateKey);
     tx.setSignature(network, this, signature.toCompactRawBytes());
     return tx;
@@ -63,7 +48,7 @@ class MockSigner extends Signer {
     throw new Error('Not implemented');
   }
 
-  protected async getAccounts(network: NetworkConfig) {
+  protected async getAccounts(network: CosmosNetworkConfig) {
     const publicKey = pubkey.secp256k1(secp256k1.getPublicKey(this.privateKey, true));
     return [{
       address: addresses.compute(network, publicKey),
@@ -72,77 +57,121 @@ class MockSigner extends Signer {
   }
 }
 
-describe('Tx', () => {
-  test('sdkTx', async () => {
-    const tx = new CosmosTx();
-    const signer = new MockSigner(secp256k1.utils.randomPrivateKey());
+describe('CosmosTx', () => {
+  describe('CosmosTxDirect', () => {
+    test('sdkTx', () => {
+      const tx = new CosmosTxDirect();
+      const signer = new MockSigner(secp256k1.utils.randomPrivateKey());
 
-    expect(tx.sdkTx(network, signer)).toEqual(SdkTx.fromPartial({
-      body: {
-        messages: [],
-        extensionOptions: [],
-        nonCriticalExtensionOptions: [],
-        memo: '',
-        timeoutHeight: 0n,
-      },
-      authInfo: {
-        signerInfos: [
-          {
-            modeInfo: {
-              single: {
-                mode: SignMode.SIGN_MODE_DIRECT,
-              },
-            },
-            publicKey: Any.encode(network, signer.getSignData(network)[0].publicKey),
-            sequence: 0n,
-          }
-        ],
-        fee: {},
-      },
-      signatures: [new Uint8Array()],
-    }));
-  });
-
-  test('fullSdkTx fails', async () => {
-    const tx = new CosmosTx();
-    expect(() => tx.fullSdkTx()).toThrow();
-  });
-
-  test('fullSdkTx', async () => {
-    const tx = new CosmosTx();
-    const signer = new MockSigner(secp256k1.utils.randomPrivateKey());
-    tx.gas = {
-      amount: [Cosmos.coin(1, 'tntrn')],
-      gasLimit: 200000n,
-    };
-    await signer.sign(network, tx);
-
-    expect(tx.fullSdkTx()).toEqual(SdkTx.fromPartial({
-      body: {
-        messages: [],
-        extensionOptions: [],
-        nonCriticalExtensionOptions: [],
-        memo: '',
-        timeoutHeight: 0n,
-      },
-      authInfo: {
-        signerInfos: [
-          {
-            modeInfo: {
-              single: {
-                mode: SignMode.SIGN_MODE_DIRECT,
-              },
-            },
-            publicKey: Any.encode(network, signer.getSignData(network)[0].publicKey),
-            sequence: 0n,
-          }
-        ],
-        fee: {
-          amount: [Cosmos.coin(1, 'tntrn')],
-          gasLimit: 200000n,
+      expect(tx.sdkTx(network, signer)).toEqual(SdkTx.fromPartial({
+        body: {
+          messages: [],
+          extensionOptions: [],
+          nonCriticalExtensionOptions: [],
+          memo: '',
+          timeoutHeight: 0n,
         },
-      },
-      signatures: [tx.signature!],
-    }));
+        authInfo: {
+          signerInfos: [
+            {
+              modeInfo: {
+                single: {
+                  mode: SignMode.SIGN_MODE_DIRECT,
+                },
+              },
+              publicKey: Any.encode(network, signer.getSignData(network)[0].publicKey) as any,
+              sequence: 0n,
+            }
+          ],
+          fee: {},
+        },
+        signatures: [new Uint8Array()],
+      }));
+    });
+
+    test('fullSdkTx fails', async () => {
+      const tx = new CosmosTxDirect();
+      expect(() => tx.fullSdkTx()).toThrow();
+    });
+
+    test('fullSdkTx', async () => {
+      const tx = new CosmosTxDirect();
+      const signer = new MockSigner(secp256k1.utils.randomPrivateKey());
+      tx.gas = {
+        amount: [{ denom: 'tntrn', amount: 1n }],
+        gasLimit: 200000n,
+      };
+      await signer.sign(network, tx);
+
+      expect(tx.fullSdkTx()).toEqual(SdkTx.fromPartial({
+        body: {
+          messages: [],
+          extensionOptions: [],
+          nonCriticalExtensionOptions: [],
+          memo: '',
+          timeoutHeight: 0n,
+        },
+        authInfo: {
+          signerInfos: [
+            {
+              modeInfo: {
+                single: {
+                  mode: SignMode.SIGN_MODE_DIRECT,
+                },
+              },
+              publicKey: Any.encode(network, signer.getSignData(network)[0].publicKey) as any,
+              sequence: 0n,
+            }
+          ],
+          fee: {
+            amount: [{ denom: 'tntrn', amount: '1' }],
+            gasLimit: 200000n,
+          },
+        },
+        signatures: [tx.signature!],
+      }));
+    });
+  });
+
+  describe('CosmosTxAmino', () => {
+    test('sdkTx', () => {
+      const tx = new CosmosTxAmino();
+      const signer = new MockSigner(secp256k1.utils.randomPrivateKey());
+
+      expect(tx.sdkTx(network, signer)).toEqual({
+        msg: [],
+        fee: {},
+        memo: '',
+        signatures: [],
+      });
+    });
+
+    test('fullSdkTx fails', () => {
+      const tx = new CosmosTxAmino();
+      expect(() => tx.fullSdkTx()).toThrow();
+    });
+
+    test('fullSdkTx', async () => {
+      const tx = new CosmosTxAmino();
+      const signer = new MockSigner(secp256k1.utils.randomPrivateKey());
+      tx.gas = {
+        amount: [{ denom: 'tntrn', amount: 1n }],
+        gasLimit: 200000n,
+      };
+      await signer.sign(network, tx);
+
+      expect(tx.fullSdkTx()).toEqual({
+        msg: [],
+        fee: {
+          amount: [{ denom: 'tntrn', amount: '1' }],
+          gas_limit: "200000",
+        },
+        memo: '',
+        signatures: [{
+          pub_key: Amino.encode(network, signer.getSignData(network)[0].publicKey),
+          signature: toBase64(tx.signature!),
+        }],
+      });
+    });
   });
 });
