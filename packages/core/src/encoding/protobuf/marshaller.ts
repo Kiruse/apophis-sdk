@@ -1,7 +1,7 @@
-import { defineMarshalUnit, extendDefaultMarshaller, extendMarshaller, MarshalUnit, morph, pass } from '@kiruse/marshal';
+import { defineMarshalUnit, extendDefaultMarshaller, extendMarshaller, MarshalUnit, morph, pass, RecaseMarshalUnit } from '@kiruse/marshal';
 import { Any } from './any.js';
-import { BytesMarshalUnit } from '../../marshal.js';
 import { fromBase64, toBase64 } from '../../utils.js';
+import { recase } from '@kristiandupont/recase';
 
 /** Marshal unit for converting an `Any` type to the proper JSON variant & back for transmission.
  *
@@ -23,10 +23,7 @@ export const AnyMarshalUnit = defineMarshalUnit(
     : pass,
 );
 
-export const defaultAnyMarshalUnits: MarshalUnit[] = [
-  AnyMarshalUnit,
-  BytesMarshalUnit,
-];
+export const defaultAnyMarshalUnits: MarshalUnit[] = [];
 
 /** The standard marshaller to encode values to their protobuf `Any` representation. */
 export const AnyMarshaller = extendDefaultMarshaller(defaultAnyMarshalUnits);

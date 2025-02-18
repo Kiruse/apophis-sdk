@@ -1,4 +1,4 @@
-import { mw } from '../../middleware.js';
+import { type MiddlewareImpl, mw } from '../../middleware.js';
 import type { Bytes, NetworkConfig } from '../../types.js';
 import { fromBase64 } from '../../utils.js';
 
@@ -86,7 +86,7 @@ export function registerDefaultProtobufs(...types: ProtobufType[]) {
   }
 }
 
-mw.use({
+export const ProtobufMiddleware: MiddlewareImpl = {
   encoding: {
     encode: (network: NetworkConfig, encoding: string, value: any) => {
       if (encoding !== 'protobuf' || typeof value !== 'object') return;
@@ -111,4 +111,4 @@ mw.use({
       return type.fromProtobuf(typeof value.value === 'string' ? fromBase64(value.value) : value.value);
     },
   },
-});
+};

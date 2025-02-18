@@ -5,7 +5,7 @@
 
 import { CosmosNetworkConfig } from '@apophis-sdk/core';
 import { BytesMarshalUnit } from '@apophis-sdk/core/marshal.js';
-import { mw } from '@apophis-sdk/core/middleware.js';
+import { MiddlewareImpl, mw } from '@apophis-sdk/core/middleware.js';
 import type { Bytes, NetworkConfig } from '@apophis-sdk/core/types.js';
 import type { Coin } from '@apophis-sdk/core/types.sdk.js';
 import { extendDefaultMarshaller } from '@kiruse/marshal';
@@ -135,7 +135,7 @@ export function registerDefaultAminos(...cls: AminoType[]) {
   }
 }
 
-mw.use({
+export const AminoMiddleware: MiddlewareImpl = {
   encoding: {
     encode: (network: NetworkConfig, encoding: string, value: any) => {
       if (encoding !== 'amino') return;
@@ -153,4 +153,4 @@ mw.use({
       return new type(AminoMarshaller.unmarshal(value.value));
     },
   },
-});
+};

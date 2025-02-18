@@ -1,5 +1,8 @@
-import { type CosmosEndpoint, type CosmosEndpoints, type CosmosNetworkConfig } from '@apophis-sdk/core';
-import { mw } from '@apophis-sdk/core/middleware.js';
+import { DefaultMiddlewares } from '@apophis-sdk/core';
+import type { CosmosEndpoint, CosmosEndpoints, CosmosNetworkConfig } from '@apophis-sdk/core';
+import type { MiddlewareImpl } from '@apophis-sdk/core/middleware.js';
+import { CosmosPubkeyMiddleware } from './crypto/pubkey';
+import { AminoMiddleware } from './encoding/amino';
 
 const store = new Map<CosmosNetworkConfig, CosmosEndpoints>();
 
@@ -14,9 +17,16 @@ export function setEndpoint(network: CosmosNetworkConfig, which: CosmosEndpoint,
   store.set(network, endpoints);
 }
 
-mw.use({
+export const CosmosMiddleware: MiddlewareImpl = {
   endpoints: { get, list },
-});
+};
+
+export const DefaultCosmosMiddlewares = [
+  ...DefaultMiddlewares,
+  CosmosMiddleware,
+  CosmosPubkeyMiddleware,
+  AminoMiddleware,
+];
 
 function get(network: CosmosNetworkConfig, which: CosmosEndpoint): string | undefined {
   return list(network, which)?.[0];

@@ -174,6 +174,7 @@ export class CosmosTxDirect extends CosmosTxBase<SdkTxDirect> {
 
   /** Get a partial Cosmos SDK Tx object. This does not require gas or signature, in which case it can be used for simulation (including gas estimation). */
   sdkTx(network: CosmosNetworkConfig, signer: Signer, signature: Uint8Array = new Uint8Array()): SdkTxDirect {
+    if (!this.messages.length) throw new Error('No messages provided');
     const { publicKey, sequence } = signer.getSignData(network)[0];
     if (!network || !publicKey) throw new Error('Account not bound');
     return SdkTxDirect.fromPartial(TxMarshaller.marshal({
@@ -249,6 +250,7 @@ export class CosmosTxAmino extends CosmosTxBase<object> {
   }
 
   sdkTx(network: CosmosNetworkConfig, signer: Signer, signature: Uint8Array = new Uint8Array()) {
+    if (!this.messages.length) throw new Error('No messages provided');
     const mwstack = mw('encoding', 'encode').inv();
     const signatures = signature.length ? [{
       pubKey: Amino.encode(network, signer.getSignData(network)[0].publicKey),

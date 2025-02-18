@@ -1,5 +1,4 @@
 import { PublicKey } from './crypto/pubkey.js';
-import { type Any } from './encoding/protobuf/any.js';
 import { CosmosEndpoint, SolanaEndpoint } from './endpoints.js';
 import { CosmosNetworkConfig, SolanaNetworkConfig, type NetworkConfig } from './networks.js';
 

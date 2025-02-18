@@ -1,6 +1,7 @@
+import { MiddlewareImpl } from '@apophis-sdk/core/middleware.js';
 import type { NetworkConfig } from '@apophis-sdk/core/networks.js';
+import { DefaultCosmosMiddlewares } from '@apophis-sdk/cosmos';
 import type { CosmWasmApi } from './cosmwasm.js';
-import { mw } from '@apophis-sdk/core/middleware.js';
 
 declare module '@apophis-sdk/core/middleware.js' {
   interface MiddlewareBeta {
@@ -19,10 +20,15 @@ export interface MiddlewareBetaWasm {
   created(instance: CosmWasmApi): void;
 }
 
-mw.use({
+export const CosmWasmMiddleware: MiddlewareImpl = {
   beta: {
     wasm: {
       enabled: () => true,
     },
   },
-});
+};
+
+export const DefaultCosmWasmMiddlewares = [
+  ...DefaultCosmosMiddlewares,
+  CosmWasmMiddleware,
+];

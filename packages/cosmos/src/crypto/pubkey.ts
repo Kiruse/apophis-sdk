@@ -1,5 +1,5 @@
 import { Any, NetworkConfig } from '@apophis-sdk/core';
-import { mw } from '@apophis-sdk/core/middleware.js';
+import { MiddlewareImpl, mw } from '@apophis-sdk/core/middleware.js';
 import { PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
 import { bytes, toBase64 } from '@apophis-sdk/core/utils.js';
 import { ripemd160 } from '@noble/hashes/ripemd160';
@@ -39,7 +39,7 @@ const encodings: Record<string, Record<string, (value: PublicKey) => unknown>> =
   },
 };
 
-mw.use({
+export const CosmosPubkeyMiddleware: MiddlewareImpl = {
   addresses: {
     compute(network: NetworkConfig, value: PublicKey) {
       if (network.ecosystem !== 'cosmos') return;
@@ -83,7 +83,7 @@ mw.use({
       }
     }
   },
-});
+};
 
 function getPubkeyType(typeUrl: string) {
   switch (typeUrl) {
