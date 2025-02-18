@@ -202,9 +202,9 @@ export const Cosmos = new class {
 
   /** Create a new transaction with the given messages. */
   tx = (messages: object[], { encoding, ...opts }: { gas?: Gas, encoding?: CosmosTxEncoding } = {}) =>
-    encoding === 'protobuf'
-      ? new CosmosTxDirect(messages, opts)
-      : new CosmosTxAmino(messages, opts);
+    encoding === 'amino'
+      ? new CosmosTxAmino(messages, opts)
+      : new CosmosTxDirect(messages, opts);
   coin = (amount: bigint | number, denom: string): Coin => Coin.fromPartial({ amount: amount.toString(), denom });
 
   /** Broadcast a transaction to the network. If `async` is true, will not wait for inclusion in a
