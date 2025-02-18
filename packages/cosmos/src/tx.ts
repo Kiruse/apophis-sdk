@@ -1,6 +1,6 @@
 import { Any, Bytes, config, type CosmosNetworkConfig, type Signer, TxBase, TxStatus } from '@apophis-sdk/core';
 import type { Gas } from '@apophis-sdk/core/types.sdk.js';
-import { extendDefaultMarshaller } from '@kiruse/marshal';
+import { extendDefaultMarshaller, IgnoreMarshalUnit } from '@kiruse/marshal';
 import { Decimal } from '@kiruse/decimal';
 import { sha256 } from '@noble/hashes/sha256';
 import { AuthInfo, Tx as SdkTxDirect, SignDoc, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
@@ -28,7 +28,9 @@ export interface AminoTxOptions {
 
 export type CosmosTx = CosmosTxDirect | CosmosTxAmino;
 
-const TxMarshaller = extendDefaultMarshaller([]);
+const TxMarshaller = extendDefaultMarshaller([
+  IgnoreMarshalUnit(Uint8Array),
+]);
 
 export abstract class CosmosTxBase<SdkTx> implements TxBase {
   readonly ecosystem = 'cosmos';
@@ -57,7 +59,11 @@ export abstract class CosmosTxBase<SdkTx> implements TxBase {
 
   computeGas(network: CosmosNetworkConfig, size: bigint | number, populate?: boolean): Gas {
     const [cfg] = network.gas;
-    const gas = Decimal.parse(size);
+    const offset = Decimal.parse(cfg.flatGasOffset ?? 50_000);
+    const multiplier = Decimal.parse(cfg.gasMultiplier ?? 1);
+
+    const gas = Decimal.parse(size).add(offset).mul(multiplier);
+
     const amount = gas.mul(Decimal.parse(cfg.lowPrice ?? cfg.avgPrice)).rebase(0).valueOf() + 1n;
     const result = {
       amount: [{ denom: cfg.asset.denom, amount }],

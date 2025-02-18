@@ -79,6 +79,22 @@ export interface CosmosGasConfig {
   avgPrice: Decimal | number;
   /** Highest gas price for the highest fee. Defaults to `avgPrice`. */
   highPrice?: Decimal | number;
+  /** Gas is a unit of measurement for compute cycles. Simulation costs less gas than the final
+   * transation due to omission of certain operations like signature verification (since simulated
+   * transactions aren't signed).
+   *
+   * To cope, other SDKs apply `gasMultiplier` between 1.1 and 1.5. You may also specify the
+   * `flatGasOffset` instead. The default is to add 50,000 gas to the estimation with no multiplier.
+   */
+  flatGasOffset?: number | bigint;
+  /** Gas is a unit of measurement for compute cycles. Simulation costs less gas than the final
+   * transation due to omission of certain operations like signature verification (since simulated
+   * transactions aren't signed).
+   *
+   * To cope, other SDKs apply a `gasMultiplier` between 1.1 and 1.5. You may also specify the
+   * `flatGasOffset` instead. The default is to add 50,000 gas to the estimation with no multiplier.
+   */
+  gasMultiplier?: number | bigint;
 }
 
 /** Specialized configuration for Solana chains. Caveat: This is a work in progress. */
