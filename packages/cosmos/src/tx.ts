@@ -141,7 +141,7 @@ export class CosmosTxDirect extends CosmosTxBase<SdkTxDirect> {
   /** Typically, timeout height of 0 is synonymous with "no timeout". */
   timeoutHeight = 0n;
 
-  constructor(public messages: Any[] = [], opts?: DirectTxOptions) {
+  constructor(public messages: any[] = [], opts?: DirectTxOptions) {
     super();
     this.gas = opts?.gas;
     this.extensionOptions = opts?.extensionOptions ?? [];
