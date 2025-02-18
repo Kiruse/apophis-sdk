@@ -57,6 +57,12 @@ class MockSigner extends Signer {
   }
 }
 
+// TODO: add signing tests w/ concrete cases
+// unfortunately, the cosmjs suite also doesn't have concrete cases. they only test if the signature
+// verifies. but w/o a concrete test case, it is impossible to know if the signature we produce is
+// correct, and signature verification is dependent on the actual message. thus, without a concrete
+// test case, we cannot assert that the message itself is correctly formed, and thus would be
+// accepted by the chain.
 describe('CosmosTx', () => {
   describe('CosmosTxDirect', () => {
     test('sdkTx', () => {

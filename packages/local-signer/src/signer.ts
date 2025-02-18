@@ -9,6 +9,7 @@ import { wordlist as _wordlist } from '@scure/bip39/wordlists/english';
 import * as secp256k1 from '@noble/secp256k1';
 import { hmac } from '@noble/hashes/hmac';
 import { sha256 } from '@noble/hashes/sha256';
+import { bytes } from '@apophis-sdk/core/utils.js';
 
 secp256k1.etc.hmacSha256Sync = (k, ...m) => hmac(sha256, k, secp256k1.etc.concatBytes(...m));
 
@@ -45,11 +46,11 @@ export class LocalSigner extends CosmosSigner {
 
   async sign(network: NetworkConfig, tx: CosmosTx): Promise<CosmosTx> {
     if (network.ecosystem !== 'cosmos') throw new Error('Currently, only Cosmos chains are supported');
-    const bytes = tx.signBytes(network, this);
-    const signature = secp256k1.sign(bytes, this.#getPrivateKey(network));
+    const bs = tx.signBytes(network, this);
+    const signature = secp256k1.sign(bs, this.#getPrivateKey(network));
     const sigBytes = signature.toCompactRawBytes();
     if (sigBytes.length !== 64) throw new Error('Invalid signature length');
-    if (!secp256k1.verify(sigBytes, bytes, this.getSignData(network)[0].publicKey.key, { lowS: true }))
+    if (!secp256k1.verify(sigBytes, bs, bytes(this.getSignData(network)[0].publicKey.bytes), { lowS: true }))
       throw new Error('Invalid signature');
 
     tx.setSignature(network, this, sigBytes);
