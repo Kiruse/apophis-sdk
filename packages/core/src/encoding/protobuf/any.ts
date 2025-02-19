@@ -90,8 +90,9 @@ Any.toTrueAny = (value: Any): TrueAny => {
   return value as TrueAny;
 };
 
-var defaultProtobufTypes: Record<string, ProtobufType> = {};
+var defaultProtobufTypes: Record<string, ProtobufType>;
 export function registerDefaultProtobufs(...types: ProtobufType[]) {
+  defaultProtobufTypes ??= {};
   for (const type of types) {
     if (type.protobufTypeUrl in defaultProtobufTypes) console.warn(`Default protobuf type ${type.protobufTypeUrl} already defined. Overriding.`);
     defaultProtobufTypes[type.protobufTypeUrl] = type;

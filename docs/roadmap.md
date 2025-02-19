@@ -2,6 +2,7 @@
 
 - [x] Amino signing (Cosmos)
 - [ ] Prevent duplicate middleware registration
+- [ ] Direct [protobuf wire format](https://protobuf.dev/programming-guides/encoding/) - it's really easy, but needs abstractions
 - [ ] Hardware wallet detection
 - [ ] Cosmos Tips (not sure what exactly those are)
 - [ ] Direct Ledger support

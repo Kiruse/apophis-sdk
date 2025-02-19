@@ -127,8 +127,9 @@ export namespace Amino {
   }
 }
 
-var defaultAminoTypes: Record<string, AminoType> = {};
+var defaultAminoTypes: Record<string, AminoType>;
 export function registerDefaultAminos(...cls: AminoType[]) {
+  defaultAminoTypes ??= {};
   for (const c of cls) {
     if (c.aminoTypeUrl in defaultAminoTypes) console.warn(`Default amino type ${c.aminoTypeUrl} already defined. Overriding.`);
     defaultAminoTypes[c.aminoTypeUrl] = c;
