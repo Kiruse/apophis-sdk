@@ -24,6 +24,7 @@ export interface DirectTxOptions extends Partial<Omit<TxBody, 'messages'>> {
 export interface AminoTxOptions {
   gas?: Gas;
   memo?: string;
+  timeoutHeight?: number | bigint;
 }
 
 export type CosmosTx = CosmosTxDirect | CosmosTxAmino;
@@ -228,13 +229,16 @@ export class CosmosTxDirect extends CosmosTxBase<SdkTxDirect> {
   }
 }
 
-export class CosmosTxAmino extends CosmosTxBase<object> {
+// Note: With the introduction of protobuf, Amino is supported by the Direct Tx type by legacy amino sign mode.
+export class CosmosTxAmino extends CosmosTxBase<SdkTxDirect> {
   readonly encoding = 'amino';
+  timeoutHeight = 0n;
 
   constructor(public messages: any[] = [], opts?: AminoTxOptions) {
     super();
     this.memo = opts?.memo ?? '';
     this.gas = opts?.gas;
+    this.timeoutHeight = opts?.timeoutHeight ? BigInt(opts.timeoutHeight) : 0n;
   }
 
   signDoc(network: CosmosNetworkConfig, signer: Signer) {
@@ -245,7 +249,10 @@ export class CosmosTxAmino extends CosmosTxBase<object> {
       chainId: network.chainId,
       accountNumber: signData.accountNumber,
       sequence: signData.sequence,
-      fee: this.gas ?? {},
+      fee: this.gas ? {
+        amount: this.gas.amount,
+        gas: this.gas.gasLimit,
+      }: {},
       memo: this.memo,
       msgs: this.messages.map(msg => mwstack.fifo(network, 'amino', msg)),
     });
@@ -257,25 +264,42 @@ export class CosmosTxAmino extends CosmosTxBase<object> {
 
   sdkTx(network: CosmosNetworkConfig, signer: Signer, signature: Uint8Array = new Uint8Array()) {
     if (!this.messages.length) throw new Error('No messages provided');
-    const mwstack = mw('encoding', 'encode').inv();
-    const signatures = signature.length ? [{
-      pubKey: Amino.encode(network, signer.getSignData(network)[0].publicKey),
-      signature,
-    }] : [];
-    return Amino.normalize({
-      msg: this.messages.map(msg => mwstack.fifo(network, 'amino', msg)),
-      fee: this.gas ?? {},
-      memo: this.memo,
-      signatures,
-    });
+
+    const signerData = signer.getSignData(network)[0];
+    if (!signerData) throw new Error('Signer not bound');
+
+    // NOTE: amino is deprecated. with the introduction of protobuf, the SDK also introduced the
+    // SIGN_MODE_LEGACY_AMINO_JSON type. this type adds backwards compatibility to the new Tx type
+    // for the old StdSignDoc of Amino.
+    // ref: https://github.com/cosmos/cosmjs/blob/25d967ae5556d8bd172e6ead6f730830c1607984/packages/stargate/src/signingstargateclient.ts#L387
+    return SdkTxDirect.fromPartial(TxMarshaller.marshal({
+      body: {
+        messages: this.messages.map(msg => Any.toTrueAny(Any.encode(network, msg))),
+        memo: this.memo,
+        timeoutHeight: this.timeoutHeight,
+      },
+      authInfo: {
+        signerInfos: [{
+          publicKey: Any.toTrueAny(Any.encode(network, signerData.publicKey)),
+          sequence: signerData.sequence,
+          modeInfo: {
+            single: {
+              mode: SignMode.SIGN_MODE_LEGACY_AMINO_JSON,
+            },
+          },
+        }],
+        fee: this.gas ?? {},
+      },
+      signatures: [signature],
+    }) as any);
   }
 
   sdkTxBytes(network: CosmosNetworkConfig, signer: Signer, signature?: Uint8Array): Uint8Array {
-    return fromUtf8(JSON.stringify(this.sdkTx(network, signer, signature)));
+    return SdkTxDirect.encode(this.sdkTx(network, signer, signature)).finish();
   }
 
   bytes(): Uint8Array {
-    return fromUtf8(JSON.stringify(this.fullSdkTx()));
+    return SdkTxDirect.encode(this.fullSdkTx()).finish();
   }
 
   static computeHash(tx: CosmosTxAmino | string) {

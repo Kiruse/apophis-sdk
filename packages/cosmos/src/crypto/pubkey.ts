@@ -76,7 +76,6 @@ export const CosmosPubkeyMiddleware: MiddlewareImpl = {
         case 'amino': {
           if (!Amino.isAmino(value)) return;
           const type = getPubkeyType(value.type);
-          console.log(value.type);
           if (!type) return;
           return new PublicKey(type, value.value);
         }

@@ -4,7 +4,7 @@ import { fromBase64 } from '../../utils.js';
 
 // TODO: implement protobuf wire format: https://protobuf.dev/programming-guides/encoding/
 
-export type Anylike = Any | MarshalledAny;
+export type TrueAny = Any & { value: Uint8Array };
 
 /** An `Any` type in protobuf. It is generally a type URL with a binary payload. */
 export type Any<T extends string = string> = {
@@ -19,7 +19,7 @@ export type MarshalledAny<T extends string = string> = {
 };
 
 /** Create a new `Any` type. This is a simple type with a `typeUrl` and a binary encoded protobuf `value`. */
-export function Any(typeUrl: string, value: Uint8Array): Any {
+export function Any(typeUrl: string, value: Uint8Array): TrueAny {
   return { typeUrl, value };
 }
 
@@ -77,6 +77,18 @@ Any.decode = (network: NetworkConfig, value: Any): unknown => {
   if (!Any.isAny(value)) throw new Error('Invalid value for Any.decode');
   return mw('encoding', 'decode').inv().fifo(network, 'protobuf', value);
 }
+
+/** Ensure `value` is indeed a `TrueAny` type (i.e. `value.value` is a `Uint8Array`). */
+Any.toTrueAny = (value: Any): TrueAny => {
+  if (!Any.isAny(value)) throw new TypeError('Not an Any-like type');
+  if (typeof value.value === 'string') {
+    return {
+      typeUrl: value.typeUrl,
+      value: fromBase64(value.value),
+    };
+  }
+  return value as TrueAny;
+};
 
 var defaultProtobufTypes: Record<string, ProtobufType> = {};
 export function registerDefaultProtobufs(...types: ProtobufType[]) {

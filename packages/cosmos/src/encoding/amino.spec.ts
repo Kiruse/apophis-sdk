@@ -1,9 +1,13 @@
+import { mw } from '@apophis-sdk/core';
 import { pubkey, PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
 import { network } from '@apophis-sdk/core/test-helpers.js';
-import { fromHex } from '@apophis-sdk/core/utils.js';
+import { fromHex, toBase64 } from '@apophis-sdk/core/utils.js';
 import { describe, expect, test } from 'bun:test';
 import { CosmosSecp256k1AminoType } from '../crypto/pubkey.js';
+import { DefaultCosmosMiddlewares } from '../middleware.js';
 import { Amino, registerDefaultAminos } from './amino';
+
+mw.use(...DefaultCosmosMiddlewares);
 
 class TestAmino {
   static readonly aminoTypeUrl = 'apophis-test/TestAmino';
@@ -45,9 +49,12 @@ describe('Amino', () => {
 
     expect(encoded).toEqual({
       type: CosmosSecp256k1AminoType,
-      value: key.bytes,
+      value: typeof key.bytes === 'string' ? key.bytes : toBase64(key.bytes),
     });
-    expect(decoded).toEqual(key);
+    expect(decoded).toEqual({
+      type: key.type,
+      bytes: typeof key.bytes === 'string' ? key.bytes : toBase64(key.bytes),
+    });
     expect(decoded).toBeInstanceOf(PublicKey);
   });
 });
