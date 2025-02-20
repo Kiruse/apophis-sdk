@@ -12,7 +12,9 @@ The `cosmwasm` module is of course not required if the chain doesn't support Cos
 
 ## Usage
 ```typescript
-import { Bank, Cosmos, LocalSigner } from '@apophis-sdk/cosmos';
+import { Apophis, Bank, Cosmos, DefaultCosmosMiddlewares, LocalSigner } from '@apophis-sdk/cosmos';
+
+Apophis.use(DefaultCosmosMiddlewares);
 
 const network = await Cosmos.getNetworkFromRegistry('neutrontestnet');
 const signer = LocalSigner.fromMnemonic('...');

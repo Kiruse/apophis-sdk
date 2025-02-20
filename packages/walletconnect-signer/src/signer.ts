@@ -91,7 +91,11 @@ export class WalletConnectCosmosSigner extends CosmosSigner {
     const signedAuthInfo = AuthInfo.decode(this.#decode(signed.authInfoBytes));
     const signedBody = TxBody.decode(this.#decode(signed.bodyBytes));
 
-    tx.gas = signedAuthInfo.fee;
+    tx.gas = {
+      ...signedAuthInfo.fee,
+      amount: signedAuthInfo.fee?.amount.map(coin => Cosmos.coin(coin.amount, coin.denom)) ?? tx.gas?.amount ?? [],
+      gasLimit: signedAuthInfo.fee?.gasLimit ?? tx.gas?.gasLimit ?? 0n,
+    };
     tx.memo = signedBody.memo;
     tx.timeoutHeight = signedBody.timeoutHeight;
     tx.setSignature(network, this, this.#decode(signature.signature));

@@ -25,6 +25,9 @@ export type InitSignData = Pick<SignData, 'address' | 'publicKey'> & { network: 
  * implementation should cache the SignData for each network and keep their sequence numbers up to date.
  */
 export abstract class Signer<Tx extends TxBase = TxBase> {
+  /** Array of registered signers. Can be used to list available signers in a frontend. */
+  static readonly signers: Signer[] = [];
+
   /** Signal of whether this signer is available / has been detected. */
   readonly available = signal(false);
   /** Signal of SignData for each connected network. */
@@ -72,5 +75,15 @@ export abstract class Signer<Tx extends TxBase = TxBase> {
   /** Get SignData for a specific network. Throws if no SignData is available. */
   getSignData(network: NetworkConfig): SignData[] {
     return this.signDatas.value?.get(network) ?? [];
+  }
+
+  /** Register a signer instance. Other components can then use this to find the signer in `Signer.signers`. */
+  static register(...signers: Signer[]) {
+    for (const signer of signers) {
+      if (this.signers.find(s => s.type === signer.type))
+        throw new Error(`Signer ${signer.type} already registered`);
+      this.signers.push(signer);
+    }
+    return this;
   }
 }

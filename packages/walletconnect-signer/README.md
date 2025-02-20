@@ -1,33 +1,31 @@
 # @apophis-sdk/walletconnect-signer
-[WalletConnect](https://walletconnect.network/) integration for the [Apophis Cosmos SDK](../../README.md).
-
-This integration is built on [@reown/appkit](https://www.npmjs.com/package/@reown/appkit) and provides a custom adapter
+[WalletConnect](https://walletconnect.network/) integration for the [Apophis Web3 SDK](../../README.md).
 
 ## Installation
 Install with your favorite package manager's equivalent of:
 
 ```bash
-npm install @apophis-sdk/core @apophis-sdk/walletconnect-signer
+npm install @apophis-sdk/core @apophis-sdk/cosmos @apophis-sdk/walletconnect-signer
 ```
 
-You will likely also want to install a frontend integration such as [@apophis-sdk/preact](../preact/README.md).
+This package is also bundled in the `@apophis-sdk/cosmos-signers` package. You will likely also want to install a frontend integration such as [@apophis-sdk/preact](../preact/README.md).
 
 ## Usage
 Using a proper frontend integration, usage is simple:
 
 ```typescript
-import { Any, signals, signers, type Asset, type NetworkConfig } from '@apophis-sdk/core';
+import { signals, Signer, type NetworkConfig } from '@apophis-sdk/core';
+import { Bank, Cosmos } from '@apophis-sdk/cosmos';
+import { WalletConnect } from '@apophis-sdk/cosmos-signers';
 import { WalletModal } from '@apophis-sdk/preact';
-import { WalletConnectSigner } from '@apophis-sdk/walletconnect-signer';
 import { render } from 'preact';
 
-signers.push(WalletConnectSigner);
+Signer.register(WalletConnect);
 
-const assets: Record<string, Asset> = /* your assets here */;
-const network: Record<string, NetworkConfig> = /* your network config here */;
-const networks = Object.values(network);
+const network = await Cosmos.getNetworkFromRegistry('neutrontestnet');
 
-signals.network.value ??= /* your network config here */;
+// set active network
+signals.network.value ??= network;
 
 // render a `WalletSelector` or `WalletModal`
 render((
@@ -43,7 +41,11 @@ function handleClick() {
   const network = signals.network.value;
   const signer = signals.signer.value; // agnostic of signer implementation
   const tx = signer.tx([
-    Any.encode(network, /* your message here */),
+    new Bank.Send({
+      fromAddress: signer.address(network),
+      toAddress: signer.address(network),
+      amount: [Cosmos.coin(1_000000n, 'untrn')], // 1 $NTRN
+    })
   ]);
 
   await tx.estimateGas(network, signer, true);
@@ -51,3 +53,6 @@ function handleClick() {
   await tx.broadcast(); // signer & network are stored internally when signed successfully
 }
 ```
+
+## License
+[LGPL-3.0](../../LICENSE)

@@ -1,10 +1,10 @@
 import { endpoints, type CosmosNetworkConfig } from '@apophis-sdk/core';
 import { pubkey, PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
 import { fromBase64, toHex } from '@apophis-sdk/core/utils.js';
-import { Cosmos, CosmosTx } from '@apophis-sdk/cosmos';
+import { Cosmos, CosmosTx, CosmosTxDirect, TxMarshaller } from '@apophis-sdk/cosmos';
 import { CosmosSigner } from '@apophis-sdk/cosmos/signer.js';
 import { type Window as KeplrWindow } from '@keplr-wallet/types';
-import { AuthInfo, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
+import { AuthInfo, SignDoc, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import Long from 'long';
 import LOGO_DATA_URL from './logo';
 
@@ -14,9 +14,13 @@ declare global {
   }
 }
 
-var signers: Array<WeakRef<KeplrSignerBase>> = [];
+var signers: Array<WeakRef<KeplrSigner>> = [];
 
-export abstract class KeplrSignerBase extends CosmosSigner {
+export class KeplrSigner extends CosmosSigner {
+  readonly type = 'Keplr';
+  readonly displayName = 'Keplr';
+  readonly logoURL = LOGO_DATA_URL;
+
   readonly canAutoReconnect = true;
 
   constructor() {
@@ -24,10 +28,6 @@ export abstract class KeplrSignerBase extends CosmosSigner {
     this.available.value = isAvailable();
     signers.push(new WeakRef(this));
   }
-
-  abstract get type(): string;
-  get displayName() { return 'Keplr' }
-  get logoURL() { return LOGO_DATA_URL }
 
   probe(): Promise<boolean> {
     return Promise.resolve(this.available.value = isAvailable());
@@ -41,8 +41,6 @@ export abstract class KeplrSignerBase extends CosmosSigner {
     await this.loadSignData(networks);
     Cosmos.watchSigner(this);
   }
-
-  abstract sign(network: CosmosNetworkConfig, tx: CosmosTx): Promise<CosmosTx>;
 
   async broadcast(tx: CosmosTx): Promise<string> {
     const { network } = tx;
@@ -78,21 +76,6 @@ export abstract class KeplrSignerBase extends CosmosSigner {
           : pubkey.ed25519(account.pubkey),
       }));
   }
-}
-
-/** Keplr Direct Signer.
- *
- * In Cosmos, there are currently two data formats for transactions: Amino and Protobuf aka Direct.
- * Amino is the legacy format and is being phased out in favor of Protobuf. It is still highly
- * relevant as the Cosmos Ledger Micro-App currently only supports Amino. It is also the reason why
- * many modern Dapps leveraging modern Cosmos SDK modules which do not support Amino are incompatible
- * with Ledger.
- *
- * When detecting, you need to check only one of `await KeplrDirect.probe()` or `await KeplrAmino.probe()`
- * as they abstract the same interface.
- */
-export class KeplrDirectSigner extends KeplrSignerBase {
-  readonly type = 'Keplr.Direct';
 
   async sign(network: CosmosNetworkConfig, tx: CosmosTx): Promise<CosmosTx> {
     const { address, publicKey } = this.getSignData(network)[0];
@@ -109,17 +92,19 @@ export class KeplrDirectSigner extends KeplrSignerBase {
     const {
       signed,
       signature: { signature },
-    } = await signer.signDirect(address, keplrSignDoc);
+    } = await signer.signDirect(address, TxMarshaller.marshal(keplrSignDoc) as any);
 
     const body = TxBody.decode(signed.bodyBytes);
     tx.memo = body.memo;
-    tx.extensionOptions = body.extensionOptions;
-    tx.nonCriticalExtensionOptions = body.nonCriticalExtensionOptions;
+    if (tx instanceof CosmosTxDirect) {
+      tx.extensionOptions = body.extensionOptions;
+      tx.nonCriticalExtensionOptions = body.nonCriticalExtensionOptions;
+    }
     tx.timeoutHeight = body.timeoutHeight;
 
     const authInfo = AuthInfo.decode(signed.authInfoBytes);
     tx.gas = {
-      amount: authInfo.fee!.amount,
+      amount: authInfo.fee!.amount.map(coin => Cosmos.coin(coin.amount, coin.denom)),
       gasLimit: authInfo.fee!.gasLimit,
       granter: authInfo.fee!.granter,
       payer: authInfo.fee!.payer,
@@ -129,8 +114,10 @@ export class KeplrDirectSigner extends KeplrSignerBase {
     return tx;
   }
 }
+
+export const Keplr = new KeplrSigner();
 /** Instance of KeplrDirectSigner. Most likely the only instance you'll need. */
-export const KeplrDirect = new KeplrDirectSigner();
+export const KeplrDirect = Keplr;
 
 function toChainSuggestion(network: CosmosNetworkConfig): Parameters<Required<KeplrWindow>['keplr']['experimentalSuggestChain']>[0] {
   return {

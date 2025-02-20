@@ -10,81 +10,17 @@ Install with your favorite package manager's equivalent of:
 npm install @apophis-sdk/core @apophis-sdk/cosmos @apophis-sdk/cosmwasm
 ```
 
-## Usage
+The core module exports no concrete blockchain-related functionality. It only provides a shared foundation for other modules that do. Currently, those modules are:
+
+- `@apophis-sdk/cosmos`
+- `@apophis-sdk/cosmwasm`
+
+With the following modules planned for the future:
+
+- `@apophis-sdk/evm`
+- `@apophis-sdk/svm` (for Solana)
+
 Check out the [Apophis SDK GitBook](https://kirudev-oss.gitbook.io/apophis-sdk/) for more information.
-
-```typescript
-import { Any, type Asset, type NetworkConfig, signers, signals } from '@apophis-sdk/core';
-import { BankSendMsg } from '@apophis-sdk/core/msg/bank';
-import { Cosmos } from '@apophis-sdk/cosmos';
-import { KeplrDirect } from '@apophis-sdk/keplr-signer';
-import { UserAddress, WalletModal } from '@apophis-sdk/preact';
-import { render } from 'preact';
-
-// signers are shown by `WalletSelector` and `WalletModal` components
-signers.push(KeplrDirect);
-
-const assets = {
-  ntrn: {
-    denom: 'untrn',
-    name: 'Neutron',
-    cgid: 'neutron',
-    decimals: 6,
-  },
-} satisfies Record<string, Asset>;
-
-// NetworkConfig objects should be passed around by reference, i.e. you should not create a new one
-// each time you pass it around.
-const network: NetworkConfig = {
-  name: 'neutron',
-  chainId: 'neutron-1',
-  prettyName: 'Neutron',
-  addressPrefix: 'neutron',
-  slip44: 118,
-  assets: [assets.ntrn],
-  gas: [{
-    asset: assets.ntrn,
-    avgPrice: 0.0053,
-  }],
-};
-
-render((
-  <div>
-    <UserAddress />
-    {!signals.account.value && <WalletModal />}
-    <button onClick={handleClick}>Click me!</button>
-  </div>
-), document.getElementById('app')!);
-
-function handleClick() {
-  const signer = signals.signer.value;
-  if (!signer) {
-    console.log('No signer chosen');
-    return;
-  }
-
-  // Txs accept generic `Any` messages. Which messages are available depends entirely on the chain.
-  // However, some messages are generic enough that you can use them across many chains, or can be
-  // translated easily using middleware.
-  const tx = Cosmos.tx([
-    new BankSendMsg(
-      'neutron12345...',
-      'neutron12345...',
-      [Cosmos.coin(1n, 'untrn')]
-    ).toAny(network),
-  ]);
-
-  // You can either `estimateGas` to ask the network for an estimate, or `computeGas` to compute the
-  // gas fee from a gas amount + price (stored in the `NetworkConfig` object).
-  await tx.estimateGas(network, signals.signer.value!, true);
-
-  // You can only sign a transaction with a gas configuration.
-  await signer.sign(network, tx);
-
-  // You can only broadcast a signed transaction.
-  await tx.broadcast();
-}
-```
 
 # License
 [LGPL-3.0](../../LICENSE)

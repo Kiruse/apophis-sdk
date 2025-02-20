@@ -1,6 +1,6 @@
 {
   "name": "@apophis-sdk/cosmos",
-  "version": "0.2.0-dev.1",
+  "version": "0.2.0-rc.1",
   "author": "Kiruse",
   "repository": "https://github.com/kiruse/apophis-sdk.git",
   "type": "module",
@@ -17,7 +17,7 @@
     "tslib": "^2.6.3"
   },
   "peerDependencies": {
-    "@apophis-sdk/core": "0.2.0-dev.1",
+    "@apophis-sdk/core": "0.2.0-rc.1",
     "@preact/signals": "^1.3.0",
     "preact": "^10.23.2",
     "typescript": "^5.0.0"

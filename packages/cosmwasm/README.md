@@ -12,8 +12,10 @@ npm install @apophis-sdk/core @apophis-sdk/cosmos @apophis-sdk/cosmwasm
 
 ## Usage
 ```typescript
-import { Cosmos, LocalSigner } from '@apophis-sdk/cosmos';
-import { CosmWasm } from '@apophis-sdk/cosmwasm';
+import { Cosmos, LocalSigner, mw } from '@apophis-sdk/cosmos';
+import { CosmWasm, DefaultCosmWasmMiddlewares } from '@apophis-sdk/cosmwasm';
+
+mw.use(DefaultCosmWasmMiddlewares); // includes `DefaultCosmosMiddlewares`
 
 const network = await Cosmos.getNetworkFromRegistry('neutrontestnet');
 const signer = LocalSigner.fromMnemonic('...');

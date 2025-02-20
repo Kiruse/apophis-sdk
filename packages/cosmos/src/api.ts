@@ -19,13 +19,13 @@ import {
   type TransactionResponse,
   type WS,
   Gas,
+  Coin,
 } from '@apophis-sdk/core/types.sdk.js';
 import { fromBase64, fromHex, fromSdkPublicKey, toBase64 } from '@apophis-sdk/core/utils.js';
 import { extendDefaultMarshaller, RecaseMarshalUnit } from '@kiruse/marshal';
 import { restful } from '@kiruse/restful';
 import { Event } from '@kiruse/typed-events';
 import { recase } from '@kristiandupont/recase';
-import { Coin } from 'cosmjs-types/cosmos/base/v1beta1/coin.js';
 import { Tx as SdkTxDirect } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { BlockID } from 'cosmjs-types/tendermint/types/types.js';
 import { TendermintQuery } from './tmquery.js';
@@ -204,7 +204,7 @@ export const Cosmos = new class {
     encoding === 'amino'
       ? new CosmosTxAmino(messages, opts)
       : new CosmosTxDirect(messages, opts);
-  coin = (amount: bigint | number, denom: string): Coin => Coin.fromPartial({ amount: amount.toString(), denom });
+  coin = (amount: bigint | number | string, denom: string): Coin => ({ denom, amount: BigInt(amount) });
 
   /** Broadcast a transaction to the network. If `async` is true, will not wait for inclusion in a
    * block and return immediately, but it also will not throw upon rejection of the transaction.

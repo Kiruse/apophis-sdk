@@ -11,15 +11,12 @@ export * as signals from './signals.js';
 export * from './signer.js';
 export * from './types.js';
 
-const wallets: Signer[] = [];
-
 export const DefaultMiddlewares = [
   ProtobufMiddleware,
 ];
 
 export { mw };
 
-export default {
+export const Apophis = {
   use: mw.use,
-  wallets,
 };

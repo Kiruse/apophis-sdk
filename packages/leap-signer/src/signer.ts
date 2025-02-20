@@ -1,6 +1,6 @@
 import { endpoints, type CosmosNetworkConfig } from '@apophis-sdk/core';
 import { pubkey, PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
-import { Cosmos, CosmosSigner, CosmosTx } from '@apophis-sdk/cosmos';
+import { Cosmos, CosmosSigner, CosmosTx, CosmosTxDirect } from '@apophis-sdk/cosmos';
 import { fromBase64, toHex } from '@apophis-sdk/core/utils.js';
 import { AuthInfo, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import Long from 'long';
@@ -13,9 +13,12 @@ declare global {
   }
 }
 
-var signers: Array<WeakRef<LeapSignerBase>> = [];
+var signers: Array<WeakRef<LeapSigner>> = [];
 
-export abstract class LeapSignerBase extends CosmosSigner {
+export class LeapSigner extends CosmosSigner {
+  readonly type = 'Leap';
+  readonly displayName = 'Leap';
+  readonly logoURL = LOGO_DATA_URL;
   readonly canAutoReconnect = true;
 
   constructor() {
@@ -23,10 +26,6 @@ export abstract class LeapSignerBase extends CosmosSigner {
     this.available.value = !!window.leap;
     signers.push(new WeakRef(this));
   }
-
-  abstract get type(): string;
-  get displayName() { return 'Leap' }
-  get logoURL() { return LOGO_DATA_URL }
 
   probe(): Promise<boolean> {
     return Promise.resolve(this.available.value = !!window.leap);
@@ -40,8 +39,6 @@ export abstract class LeapSignerBase extends CosmosSigner {
     await this.loadSignData(networks);
     Cosmos.watchSigner(this);
   }
-
-  abstract sign(network: CosmosNetworkConfig, tx: CosmosTx): Promise<CosmosTx>;
 
   async broadcast(tx: CosmosTx): Promise<string> {
     const { network } = tx;
@@ -76,21 +73,6 @@ export abstract class LeapSignerBase extends CosmosSigner {
           : pubkey.ed25519(account.pubkey),
       }));
   }
-}
-
-/** Leap Direct Signer.
- *
- * In Cosmos, there are currently two data formats for transactions: Amino and Protobuf aka Direct.
- * Amino is the legacy format and is being phased out in favor of Protobuf. It is still highly
- * relevant as the Cosmos Ledger Micro-App currently only supports Amino. It is also the reason why
- * many modern Dapps leveraging modern Cosmos SDK modules which do not support Amino are incompatible
- * with Ledger.
- *
- * When detecting, you need to check only one of `await KeplrDirect.probe()` or `await KeplrAmino.probe()`
- * as they abstract the same interface.
- */
-export class LeapDirectSigner extends LeapSignerBase {
-  readonly type = 'Keplr.Direct';
 
   async sign(network: CosmosNetworkConfig, tx: CosmosTx): Promise<CosmosTx> {
     const { address, publicKey } = this.getSignData(network)[0];
@@ -111,13 +93,15 @@ export class LeapDirectSigner extends LeapSignerBase {
 
     const body = TxBody.decode(signed.bodyBytes);
     tx.memo = body.memo;
-    tx.extensionOptions = body.extensionOptions;
-    tx.nonCriticalExtensionOptions = body.nonCriticalExtensionOptions;
+    if (tx instanceof CosmosTxDirect) {
+      tx.extensionOptions = body.extensionOptions;
+      tx.nonCriticalExtensionOptions = body.nonCriticalExtensionOptions;
+    }
     tx.timeoutHeight = body.timeoutHeight;
 
     const authInfo = AuthInfo.decode(signed.authInfoBytes);
     tx.gas = {
-      amount: authInfo.fee!.amount,
+      amount: authInfo.fee!.amount.map(coin => Cosmos.coin(coin.amount, coin.denom)),
       gasLimit: authInfo.fee!.gasLimit,
       granter: authInfo.fee!.granter,
       payer: authInfo.fee!.payer,
@@ -127,8 +111,11 @@ export class LeapDirectSigner extends LeapSignerBase {
     return tx;
   }
 }
-/** Instance of LeapDirectSigner. Most likely the only instance you'll need. */
-export const LeapDirect = new LeapDirectSigner();
+
+export const Leap = new LeapSigner();
+
+/** @deprecated Use `Leap` instead. There is no difference between Direct and Amino signers in Apophis. */
+export const LeapDirect = Leap;
 
 function toChainSuggestion(network: CosmosNetworkConfig): Parameters<Required<Window>['leap']['experimentalSuggestChain']>[0] {
   return {

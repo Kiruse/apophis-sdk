@@ -5,6 +5,7 @@ Includes:
 
 - [Keplr](https://keplr.app)
 - [Leap](https://leapwallet.io)
+- [WalletConnect](https://walletconnect.network/)
 
 Check out the [Apophis SDK GitBook](https://kirudev-oss.gitbook.io/apophis-sdk/) for more information.
 
