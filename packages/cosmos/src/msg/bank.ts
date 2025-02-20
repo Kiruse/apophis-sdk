@@ -2,8 +2,7 @@ import { registerDefaultProtobufs } from '@apophis-sdk/core/encoding/protobuf/an
 import { Coin } from '@apophis-sdk/core/types.sdk.js';
 import { MsgSend } from 'cosmjs-types/cosmos/bank/v1beta1/tx';
 import { registerDefaultAminos } from '../encoding/amino';
-import { TxMarshaller } from 'src/tx';
-import { Cosmos } from 'src/api';
+import { TxMarshaller } from '../tx';
 
 export namespace Bank {
   export type SendData = {
