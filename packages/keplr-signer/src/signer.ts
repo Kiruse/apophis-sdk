@@ -116,7 +116,8 @@ export class KeplrSigner extends CosmosSigner {
 }
 
 export const Keplr = new KeplrSigner();
-/** Instance of KeplrDirectSigner. Most likely the only instance you'll need. */
+
+/** @deprecated Use `Keplr` instead. There is no difference between Direct and Amino signers in Apophis. */
 export const KeplrDirect = Keplr;
 
 function toChainSuggestion(network: CosmosNetworkConfig): Parameters<Required<KeplrWindow>['keplr']['experimentalSuggestChain']>[0] {
