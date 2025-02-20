@@ -29,7 +29,7 @@ export interface AminoTxOptions {
 
 export type CosmosTx = CosmosTxDirect | CosmosTxAmino;
 
-const TxMarshaller = extendDefaultMarshaller([
+export const TxMarshaller = extendDefaultMarshaller([
   IgnoreMarshalUnit(Uint8Array),
 ]);
 

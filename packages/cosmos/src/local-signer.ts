@@ -1,15 +1,17 @@
 import { endpoints, type NetworkConfig } from '@apophis-sdk/core';
-import { Cosmos, CosmosSigner, CosmosTx } from '@apophis-sdk/cosmos';
-import { BroadcastMode } from '@apophis-sdk/core/types.sdk.js';
 import { addresses } from '@apophis-sdk/core/address.js';
 import { pubkey, PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
+import { BroadcastMode } from '@apophis-sdk/core/types.sdk.js';
+import { bytes } from '@apophis-sdk/core/utils.js';
 import * as bip32 from '@scure/bip32';
 import * as bip39 from '@scure/bip39';
 import { wordlist as _wordlist } from '@scure/bip39/wordlists/english';
-import * as secp256k1 from '@noble/secp256k1';
 import { hmac } from '@noble/hashes/hmac';
 import { sha256 } from '@noble/hashes/sha256';
-import { bytes } from '@apophis-sdk/core/utils.js';
+import * as secp256k1 from '@noble/secp256k1';
+import { Cosmos } from './api.js';
+import { CosmosSigner } from './signer.js';
+import { CosmosTx } from './tx.js';
 
 secp256k1.etc.hmacSha256Sync = (k, ...m) => hmac(sha256, k, secp256k1.etc.concatBytes(...m));
 

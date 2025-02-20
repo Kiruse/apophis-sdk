@@ -1,7 +1,8 @@
 /// <reference path="../../../node_modules/bun-types/index.d.ts" />
 import { describe, expect, test } from 'bun:test';
-import { LocalSigner } from './signer.js';
-import { FungibleAsset, NetworkConfig } from '@apophis-sdk/core';
+import { LocalSigner } from './local-signer.js';
+import { FungibleAsset, mw, NetworkConfig } from '@apophis-sdk/core';
+import { DefaultCosmosMiddlewares } from './middleware.js';
 
 const MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 // TODO: test for ETH addresses once we actually add EVM support
@@ -12,6 +13,8 @@ const ADDR_TERRA = 'terra1amdttz2937a3dytmxmkany53pp6ma6dy4vsllv';
 // TODO: injective does a lot of things differently to implement EVM compatibility, so there are
 // a whole bunch of special cases
 // const ADDR_INJ = 'inj1npvwllfr9dqr8erajqqr6s0vxnk2ak55re90dz';
+
+mw.use(...DefaultCosmosMiddlewares);
 
 const assets: Record<string, FungibleAsset> = {
   atom: {
