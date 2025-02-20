@@ -1,1 +1,1 @@
-export { WalletConnectCosmosSigner } from './signer';
+export * from './signer.js';

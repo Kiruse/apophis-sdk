@@ -1,4 +1,4 @@
-import { type NetworkConfig, signals, type Signer, signers } from '@apophis-sdk/core';
+import { type NetworkConfig, signals, Signer } from '@apophis-sdk/core';
 import cx from 'classnames';
 import React, { useLayoutEffect } from 'preact/compat';
 
@@ -19,7 +19,7 @@ export interface WalletChoiceProps {
 
 export function WalletSelector({ networks, onSelect, ...props }: Readonly<WalletSelectorProps>) {
   useLayoutEffect(() => {
-    signers.forEach(signer => signer.probe());
+    Signer.signers.forEach(signer => signer.probe());
   }, []);
 
   return (
@@ -27,7 +27,7 @@ export function WalletSelector({ networks, onSelect, ...props }: Readonly<Wallet
       {...props}
       class={cx('apophis-wallet-selector', props.class)}
     >
-      {signers.map(signer => (
+      {Signer.signers.map(signer => (
         <WalletSelector.Choice
           key={signer.type}
           disabled={!signer.available.value}
