@@ -1,19 +1,48 @@
 # @apophis-sdk/cosmos
 Cosmos ecosystem support for the Apophis SDK. Apophis is a strongly opinionated SDK for building web3 applications in different ecosystems.
 
-***TODO:*** Example usage.
-
-Check out the [GitBook](https://apophis-sdk.gitbook.io/apophis-sdk/) for more information.
-
-## Development & Testing
-Development & unit/integration testing is done with [bun](https://bun.sh). [cosmjs](https://cosmos.github.io/cosmjs/) is used as reference implementation, but the entire library is written from scratch, and particularly for integration testing to ensure our implementation achieves the same behaviors.
-
-To run the tests:
+## Installation
+Install with your favorite package manager's equivalent of:
 
 ```bash
-cd packages/cosmos
-bun test
+npm install @apophis-sdk/core @apophis-sdk/cosmos @apophis-sdk/cosmwasm
 ```
+
+The `cosmwasm` module is of course not required if the chain doesn't support CosmWasm, but most chains do. EVM support for chains like Injective, Sei or Canto is not yet implemented.
+
+## Usage
+```typescript
+import { Bank, Cosmos, LocalSigner } from '@apophis-sdk/cosmos';
+
+const network = await Cosmos.getNetworkFromRegistry('neutrontestnet');
+const signer = LocalSigner.fromMnemonic('...');
+
+await Cosmos.ws(network).ready();
+
+const { block } = await Cosmos.ws(network).getBlock();
+console.log(block.header.hash, block.header.height, block.header.timestamp);
+
+const tx = Cosmos.tx([
+  new Bank.Send({
+    fromAddress: signer.address(network),
+    toAddress: signer.address(network),
+    amount: [Cosmos.coin(1_000000n, 'untrn')],
+  }),
+]);
+
+// true populates the `gas` field of the `tx` object
+await tx.estimateGas(network, signer, true);
+await signer.sign(network, tx);
+const txhash = await tx.broadcast();
+console.log(tx.status);
+
+if (tx.status === 'success') {
+  const result = await Cosmos.ws(network).expectTx(tx);
+  console.log(result);
+}
+```
+
+Check out the [Apophis SDK GitBook](https://kirudev-oss.gitbook.io/apophis-sdk/) for more information.
 
 # License
 [LGPL-3.0](../../LICENSE)

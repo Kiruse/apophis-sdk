@@ -9,6 +9,9 @@
   "scripts": {
     "build": "tsc"
   },
+  "dependencies": {
+    "tslib": "^2.6.3"
+  },
   "peerDependencies": {
     "@apophis-sdk/core": "0.2.0-dev.1",
     "typescript": "^5.0.0"

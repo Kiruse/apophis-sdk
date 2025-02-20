@@ -1,216 +1,98 @@
-import { Any } from '@apophis-sdk/core';
+import { registerDefaultProtobufs } from '@apophis-sdk/core/encoding/protobuf/any.js';
 import { Coin } from '@apophis-sdk/core/types.sdk.js';
-import { AminoMarshaller, AminoMsg, Amino } from '@apophis-sdk/cosmos/encoding.js';
+import { TxMarshaller } from '@apophis-sdk/cosmos';
+import { registerDefaultAminos } from '@apophis-sdk/cosmos/encoding/amino.js';
 import { MsgExecuteContract, MsgInstantiateContract, MsgStoreCode } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
 
-export interface StoreCodePayload {
-  sender?: string;
-  wasmByteCode: Uint8Array;
-}
+export namespace Contract {
+  export interface StoreCodePayload {
+    sender?: string;
+    wasmByteCode: Uint8Array;
+  }
 
-export interface InstantiatePayload {
-  admin?: string;
-  sender?: string;
-  codeId: bigint;
-  label: string;
-  msg: Uint8Array;
-  funds?: Coin[];
-}
+  export class StoreCode {
+    static readonly protobufTypeUrl = '/cosmwasm.wasm.v1.MsgStoreCode';
+    static readonly aminoTypeUrl = 'wasm/MsgStoreCode';
 
-export interface ExecutePayload {
-  sender?: string;
-  contract?: string;
-  msg: Uint8Array;
-  funds?: Coin[];
-}
+    constructor(public data: StoreCodePayload) {}
 
-export const Contract = new class {
-  readonly StoreCode = new class implements MessageFactory<StoreCodePayload> {
-    readonly protobufTypeUrl = '/cosmwasm.wasm.v1.MsgStoreCode';
-    readonly aminoTypeUrl = 'wasm/MsgStoreCode';
-
-    create(payload: StoreCodePayload): StoreCodePayload {
-      return payload;
+    static toProtobuf(value: StoreCode): Uint8Array {
+      return MsgStoreCode.encode(MsgStoreCode.fromPartial(value.data)).finish();
     }
 
-    canEncode(encoding: string): boolean {
-      return encoding === 'prorobuf' || encoding === 'amino';
-    }
-
-    isMessage(value: unknown): value is StoreCodePayload {
-      return typeof value === 'object' && !!value && 'wasmByteCode' in value;
-    }
-
-    isEncoded(encoding: string, value: unknown): boolean {
-      switch (encoding) {
-        case 'protobuf':
-          return Any.isAny(value) && value.typeUrl === this.protobufTypeUrl;
-        case 'amino':
-          return isAmino(value) && value.type === this.aminoTypeUrl;
-        default:
-          return false;
-      }
-    }
-
-    encode(encoding: string, value: StoreCodePayload, context: MessageContext = {}): unknown {
-      const getPayload = () => ({
-        ...value,
-        sender: value.sender ?? context.sender,
+    static fromProtobuf(value: Uint8Array): StoreCode {
+      const data = MsgStoreCode.decode(value);
+      return new StoreCode({
+        sender: data.sender,
+        wasmByteCode: data.wasmByteCode,
       });
-
-      switch (encoding) {
-        case 'protobuf':
-          return {
-            typeUrl: this.protobufTypeUrl,
-            value: MsgStoreCode.encode(MsgStoreCode.fromPartial(getPayload())).finish(),
-          } satisfies Any;
-        case 'amino':
-          return {
-            type: this.aminoTypeUrl,
-            value: AminoMarshaller.marshal(getPayload()),
-          } satisfies AminoMsg;
-        default:
-          throw new Error('Unsupported encoding');
-      }
-    }
-
-    decode(encoding: string, value: unknown, context: MessageContext = {}): StoreCodePayload {
-      switch (encoding) {
-        case 'protobuf':
-          if (!Any.isAny(value) || value.typeUrl !== this.protobufTypeUrl) throw new Error('invalid value');
-          return MsgStoreCode.decode((value as Any).value);
-        case 'amino':
-          if (!isAmino(value) || value.type !== this.aminoTypeUrl) throw new Error('invalid value');
-          return AminoMarshaller.unmarshal(value) as StoreCodePayload;
-        default:
-          throw new Error('Unsupported encoding');
-      }
     }
   }
 
-  readonly Instantiate = new class implements MessageFactory<InstantiatePayload> {
-    readonly protobufTypeUrl = '/cosmwasm.wasm.v1.MsgInstantiateContract';
-    readonly aminoTypeUrl = 'wasm/MsgInstantiateContract';
+  export interface InstantiatePayload {
+    admin?: string;
+    sender: string;
+    codeId: bigint;
+    label: string;
+    msg: Uint8Array;
+    funds?: Coin[];
+  }
 
-    create(payload: InstantiatePayload): InstantiatePayload {
-      return payload;
+  export class Instantiate {
+    static readonly protobufTypeUrl = '/cosmwasm.wasm.v1.MsgInstantiateContract';
+    static readonly aminoTypeUrl = 'wasm/MsgInstantiateContract';
+
+    constructor(public data: InstantiatePayload) {}
+
+    static toProtobuf(value: Instantiate): Uint8Array {
+      return MsgInstantiateContract.encode(MsgInstantiateContract.fromPartial(
+        TxMarshaller.marshal(value.data) as any
+      )).finish();
     }
 
-    canEncode(encoding: string): boolean {
-      return encoding === 'protobuf' || encoding === 'amino';
-    }
-
-    isMessage(value: unknown): value is InstantiatePayload {
-      return typeof value === 'object' && !!value && 'codeId' in value;
-    }
-
-    isEncoded(encoding: string, value: unknown): boolean {
-      switch (encoding) {
-        case 'protobuf':
-          return Any.isAny(value) && value.typeUrl === this.protobufTypeUrl;
-        case 'amino':
-          return isAmino(value) && value.type === this.aminoTypeUrl;
-        default:
-          return false;
-      }
-    }
-
-    encode(encoding: string, value: InstantiatePayload, context: MessageContext = {}): unknown {
-      const getPayload = () => ({
-        ...value,
-        sender: value.sender ?? context.sender,
+    static fromProtobuf(value: Uint8Array): Instantiate {
+      const data = TxMarshaller.unmarshal(MsgInstantiateContract.decode(value)) as InstantiatePayload;
+      return new Instantiate({
+        admin: data.admin,
+        sender: data.sender,
+        codeId: data.codeId,
+        label: data.label,
+        msg: data.msg,
+        funds: data.funds ?? [],
       });
-
-      switch (encoding) {
-        case 'protobuf':
-          return {
-            typeUrl: this.protobufTypeUrl,
-            value: MsgInstantiateContract.encode(MsgInstantiateContract.fromPartial(getPayload())).finish(),
-          } satisfies Any;
-        case 'amino':
-          return {
-            type: this.aminoTypeUrl,
-            value: AminoMarshaller.marshal(getPayload()),
-          } satisfies AminoMsg;
-        default:
-          throw new Error('Unsupported encoding');
-      }
-    }
-
-    decode(encoding: string, value: unknown, context: MessageContext = {}): InstantiatePayload {
-      switch (encoding) {
-        case 'protobuf':
-          if (!Any.isAny(value) || value.typeUrl !== this.protobufTypeUrl) throw new Error('invalid value');
-          return MsgInstantiateContract.decode((value as Any).value);
-        case 'amino':
-          if (!isAmino(value) || value.type !== this.aminoTypeUrl) throw new Error('invalid value');
-          return AminoMarshaller.unmarshal(value) as InstantiatePayload;
-        default:
-          throw new Error('Unsupported encoding');
-      }
     }
   }
 
-  readonly Execute = new class implements MessageFactory<ExecutePayload> {
-    readonly protobufTypeUrl = '/cosmwasm.wasm.v1.MsgExecuteContract';
-    readonly aminoTypeUrl = 'wasm/MsgExecuteContract';
+  export interface ExecutePayload {
+    sender: string;
+    contract: string;
+    msg: Uint8Array;
+    funds?: Coin[];
+  }
 
-    create(payload: ExecutePayload): ExecutePayload {
-      return payload;
+  export class Execute {
+    static readonly protobufTypeUrl = '/cosmwasm.wasm.v1.MsgExecuteContract';
+    static readonly aminoTypeUrl = 'wasm/MsgExecuteContract';
+
+    constructor(public data: ExecutePayload) {}
+
+    static toProtobuf(value: Execute): Uint8Array {
+      return MsgExecuteContract.encode(MsgExecuteContract.fromPartial(
+        TxMarshaller.marshal(value.data) as any
+      )).finish();
     }
 
-    canEncode(encoding: string): boolean {
-      return encoding === 'prorobuf' || encoding === 'amino';
-    }
-
-    isMessage(value: unknown): value is ExecutePayload {
-      return typeof value === 'object' && !!value && 'contract' in value;
-    }
-
-    isEncoded(encoding: string, value: unknown): boolean {
-      switch (encoding) {
-        case 'protobuf':
-          return Any.isAny(value) && value.typeUrl === this.protobufTypeUrl;
-        case 'amino':
-          return isAmino(value) && value.type === this.aminoTypeUrl;
-        default:
-          return false;
-      }
-    }
-
-    encode(encoding: string, value: ExecutePayload, context: MessageContext = {}): unknown {
-      const getPayload = () => ({
-        ...value,
-        sender: value.sender ?? context.sender,
+    static fromProtobuf(value: Uint8Array): Execute {
+      const data = TxMarshaller.unmarshal(MsgExecuteContract.decode(value)) as ExecutePayload;
+      return new Execute({
+        sender: data.sender,
+        contract: data.contract,
+        msg: data.msg,
+        funds: data.funds ?? [],
       });
-
-      switch (encoding) {
-        case 'protobuf':
-          return {
-            typeUrl: this.protobufTypeUrl,
-            value: MsgExecuteContract.encode(MsgExecuteContract.fromPartial(getPayload())).finish(),
-          } satisfies Any;
-        case 'amino':
-          return {
-            type: this.aminoTypeUrl,
-            value: AminoMarshaller.marshal(getPayload()),
-          } satisfies AminoMsg;
-        default:
-          throw new Error('Unsupported encoding');
-      }
-    }
-
-    decode(encoding: string, value: unknown, context: MessageContext = {}): ExecutePayload {
-      switch (encoding) {
-        case 'protobuf':
-          if (!Any.isAny(value) || value.typeUrl !== this.protobufTypeUrl) throw new Error('invalid value');
-          return MsgExecuteContract.decode((value as Any).value);
-        case 'amino':
-          if (!isAmino(value) || value.type !== this.aminoTypeUrl) throw new Error('invalid value');
-          return AminoMarshaller.unmarshal(value) as ExecutePayload;
-        default:
-          throw new Error('Unsupported encoding');
-      }
     }
   }
+
+  registerDefaultAminos(StoreCode, Instantiate, Execute);
+  registerDefaultProtobufs(StoreCode, Instantiate, Execute);
 }

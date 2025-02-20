@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "@keplr-wallet/types": "^0.12.121",
-    "long": "^5.2.3"
+    "long": "^5.2.3",
+    "tslib": "^2.6.3"
   },
   "peerDependencies": {
     "@apophis-sdk/core": "0.2.0-dev.1",

@@ -9,6 +9,11 @@
   "scripts": {
     "build": "tsc"
   },
+  "dependencies": {
+    "@walletconnect/sign-client": "^2.16.2",
+    "qrcode": "^1.5.4",
+    "tslib": "^2.6.3"
+  },
   "peerDependencies": {
     "@apophis-sdk/core": "0.2.0-dev.1",
     "typescript": "^5.0.0"
@@ -22,9 +27,5 @@
     "dist",
     "README.md",
     "tsconfig.json"
-  ],
-  "dependencies": {
-    "@walletconnect/sign-client": "^2.16.2",
-    "qrcode": "^1.5.4"
-  }
+  ]
 }

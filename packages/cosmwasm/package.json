@@ -13,7 +13,8 @@
     "test": "bun test"
   },
   "dependencies": {
-    "classnames": "^2.5.1"
+    "classnames": "^2.5.1",
+    "tslib": "^2.6.3"
   },
   "peerDependencies": {
     "@apophis-sdk/core": "0.2.0-dev.1",

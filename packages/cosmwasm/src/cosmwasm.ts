@@ -1,11 +1,11 @@
 import { BytesMarshalUnit } from '@apophis-sdk/core/marshal.js';
-import { ExecuteContractMsg, InstantiateContractMsg, StoreCodeMsg } from './msgs.js';
 import { type CosmosNetworkConfig } from '@apophis-sdk/core/networks.js';
 import { type Signer } from '@apophis-sdk/core/signer.js';
 import type { Coin, TransactionResponse } from '@apophis-sdk/core/types.sdk.js';
 import { fromBase64, fromHex, fromUtf8, toBase64, toUtf8 } from '@apophis-sdk/core/utils.js';
 import { Cosmos } from '@apophis-sdk/cosmos';
 import { extendDefaultMarshaller, ToJsonMarshalUnit } from '@kiruse/marshal';
+import { Contract } from './msg/contracts.js';
 
 export interface InstantiateOptions {
   network: CosmosNetworkConfig;
@@ -44,7 +44,7 @@ export class CosmWasmApi {
   /** Convenience function to store the given contract code on-chain. Waits for block inclusion & returns the new code's ID. */
   async store(network: CosmosNetworkConfig, signer: Signer, code: Uint8Array) {
     const tx = Cosmos.tx([
-      new StoreCodeMsg({ sender: signer.address(network), wasmByteCode: code }).toAny(network),
+      new Contract.StoreCode({ sender: signer.address(network), wasmByteCode: code }),
     ]);
 
     const { gasLimit } = await tx.estimateGas(network, signer);
@@ -68,14 +68,14 @@ export class CosmWasmApi {
   /** Convenience function to instantiate a contract from a previously stored code. Waits for block inclusion & returns the new contract's address. */
   async instantiate({ network, signer, codeId, label, admin, msg, funds = [] }: InstantiateOptions): Promise<string> {
     const tx = Cosmos.tx([
-      new InstantiateContractMsg({
+      new Contract.Instantiate({
         admin: admin ?? signer.address(network),
         sender: signer.address(network),
         codeId,
         label,
         msg,
         funds,
-      }).toAny(network),
+      }),
     ]);
 
     const { gasLimit } = await tx.estimateGas(network, signer);
@@ -99,12 +99,12 @@ export class CosmWasmApi {
   /** Convenience function to invoke a contract execution. Waits for block inclusion & returns the transaction response. */
   async execute(network: CosmosNetworkConfig, signer: Signer, contractAddress: string, msg: Uint8Array, funds: Coin[] = []): Promise<TransactionResponse> {
     const tx = Cosmos.tx([
-      new ExecuteContractMsg({
+      new Contract.Execute({
         sender: signer.address(network),
         contract: contractAddress,
         msg,
         funds,
-      }).toAny(network),
+      }),
     ]);
 
     const { gasLimit } = await tx.estimateGas(network, signer);

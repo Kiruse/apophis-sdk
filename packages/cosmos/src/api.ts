@@ -1,11 +1,9 @@
 import { type FungibleAsset } from '@apophis-sdk/core';
 import { addresses } from '@apophis-sdk/core/address.js';
-import { Any } from '@apophis-sdk/core/encoding/protobuf/any.js';
 import { endpoints } from '@apophis-sdk/core/endpoints.js';
 import { BytesMarshalUnit } from '@apophis-sdk/core/marshal.js';
 import type { CosmosNetworkConfig, NetworkConfig } from '@apophis-sdk/core/networks.js';
 import { PowerSocket } from '@apophis-sdk/core/powersocket.js';
-import { TendermintQuery } from '@apophis-sdk/core/query.js';
 import * as signals from '@apophis-sdk/core/signals.js';
 import type { SignData, Signer } from '@apophis-sdk/core/signer.js';
 import {
@@ -30,6 +28,7 @@ import { recase } from '@kristiandupont/recase';
 import { Coin } from 'cosmjs-types/cosmos/base/v1beta1/coin.js';
 import { Tx as SdkTxDirect } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { BlockID } from 'cosmjs-types/tendermint/types/types.js';
+import { TendermintQuery } from './tmquery.js';
 import { type CosmosTx, CosmosTxAmino, CosmosTxDirect, CosmosTxEncoding } from './tx.js';
 
 type Unsub = () => void;

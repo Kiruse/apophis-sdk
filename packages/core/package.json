@@ -16,7 +16,6 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@chain-registry/client": "^1.48.64",
     "@kiruse/decimal": "^1.0.5-fix.1",
     "@kiruse/marshal": "^0.2.0-rc.1",
     "@kiruse/restful": "^0.2.3-fix.3",
