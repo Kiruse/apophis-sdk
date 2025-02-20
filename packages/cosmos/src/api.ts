@@ -29,7 +29,7 @@ import { recase } from '@kristiandupont/recase';
 import { Tx as SdkTxDirect } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { BlockID } from 'cosmjs-types/tendermint/types/types.js';
 import { TendermintQuery } from './tmquery.js';
-import { type CosmosTx, CosmosTxAmino, CosmosTxDirect, CosmosTxEncoding } from './tx.js';
+import { type CosmosTx, CosmosTxAmino, CosmosTxBase, CosmosTxDirect, CosmosTxEncoding } from './tx.js';
 
 type Unsub = () => void;
 
@@ -287,6 +287,10 @@ export const Cosmos = new class {
     } catch {
       return typeof tx === 'string' ? tx : tx instanceof Uint8Array ? toBase64(tx) : tx;
     }
+  }
+
+  getTxHash(tx: CosmosTx | Uint8Array | string | SdkTxDirect) {
+    return CosmosTxBase.computeHash(tx);
   }
 
   /** Search a list of `CosmosEvent`s for a particular event/attribute. The result is a list of all

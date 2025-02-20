@@ -1,7 +1,9 @@
 import { registerDefaultProtobufs } from '@apophis-sdk/core/encoding/protobuf/any.js';
-import type { Coin } from 'cosmjs-types/cosmos/base/v1beta1/coin';
+import { Coin } from '@apophis-sdk/core/types.sdk.js';
 import { MsgSend } from 'cosmjs-types/cosmos/bank/v1beta1/tx';
 import { registerDefaultAminos } from '../encoding/amino';
+import { TxMarshaller } from 'src/tx';
+import { Cosmos } from 'src/api';
 
 export namespace Bank {
   export type SendData = {
@@ -17,11 +19,11 @@ export namespace Bank {
     constructor(public data: SendData) {}
 
     static toProtobuf(value: Send): Uint8Array {
-      return MsgSend.encode(MsgSend.fromPartial(value.data)).finish();
+      return MsgSend.encode(MsgSend.fromPartial(TxMarshaller.marshal(value.data) as any)).finish();
     }
 
     static fromProtobuf(value: Uint8Array): Send {
-      const { fromAddress, toAddress, amount } = MsgSend.decode(value);
+      const { fromAddress, toAddress, amount } = TxMarshaller.unmarshal(MsgSend.decode(value)) as SendData;
       return new Send({ fromAddress, toAddress, amount });
     }
   };

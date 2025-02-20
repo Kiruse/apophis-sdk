@@ -6,7 +6,7 @@ import { sha256 } from '@noble/hashes/sha256';
 import { AuthInfo, Tx as SdkTxDirect, SignDoc, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { SignMode } from 'cosmjs-types/cosmos/tx/signing/v1beta1/signing';
 import { Cosmos } from './api';
-import { fromBase64, fromUtf8, toHex } from '@apophis-sdk/core/utils.js';
+import { fromBase64, toHex } from '@apophis-sdk/core/utils.js';
 import { mw } from '@apophis-sdk/core/middleware.js';
 import { Amino } from './encoding/amino';
 
@@ -118,18 +118,24 @@ export abstract class CosmosTxBase<SdkTx> implements TxBase {
   /** Get the full bytes of this transaction. Requires signature and gas. */
   abstract bytes(): Uint8Array;
 
-  static computeHash(tx: CosmosTx | string) {
-    let hash: Bytes;
+  /** Computes the hash of a Cosmos transaction. A string is assumed to be a base64-encoded transaction.
+   * A Uint8Array is assumed to be a protobuf-encoded transaction. All transactions must be an
+   * SdkTxDirect. Amino transactions are supported by legacy amino sign mode of the new Tx type.
+   */
+  static computeHash(tx: CosmosTxBase<SdkTxDirect> | Uint8Array | string | SdkTxDirect): string {
     if (typeof tx === 'string') {
-      if (tx.startsWith('{') && tx.endsWith('}')) {
-        hash = sha256(tx);
-      } else {
-        hash = sha256(fromBase64(tx));
-      }
-    } else {
-      hash = sha256(tx.bytes());
+      tx = fromBase64(tx);
     }
-    return toHex(hash);
+    if (tx instanceof Uint8Array) {
+      tx = SdkTxDirect.decode(tx);
+    }
+    if (tx instanceof CosmosTxBase) {
+      tx = tx.fullSdkTx();
+    }
+
+    const bytes = SdkTxDirect.encode(tx).finish();
+    const buffer = sha256(bytes);
+    return toHex(new Uint8Array(buffer));
   }
 
   get status(): TxStatus { return this.#status }
@@ -215,18 +221,6 @@ export class CosmosTxDirect extends CosmosTxBase<SdkTxDirect> {
   bytes(): Uint8Array {
     return SdkTxDirect.encode(this.fullSdkTx()).finish();
   }
-
-  static computeHash(tx: CosmosTxDirect | string) {
-    let bytes: Uint8Array;
-    if (typeof tx === 'string') {
-      bytes = fromBase64(tx);
-    } else {
-      bytes = SdkTxDirect.encode(tx.fullSdkTx()).finish();
-    }
-
-    const buffer = sha256(bytes);
-    return toHex(new Uint8Array(buffer));
-  }
 }
 
 // Note: With the introduction of protobuf, Amino is supported by the Direct Tx type by legacy amino sign mode.
@@ -300,17 +294,5 @@ export class CosmosTxAmino extends CosmosTxBase<SdkTxDirect> {
 
   bytes(): Uint8Array {
     return SdkTxDirect.encode(this.fullSdkTx()).finish();
-  }
-
-  static computeHash(tx: CosmosTxAmino | string) {
-    let bytes: Uint8Array;
-    if (typeof tx === 'string') {
-      bytes = fromUtf8(tx);
-    } else {
-      bytes = tx.bytes();
-    }
-
-    const buffer = sha256(bytes);
-    return toHex(new Uint8Array(buffer));
   }
 }
