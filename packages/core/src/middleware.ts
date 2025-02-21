@@ -2,7 +2,7 @@ import { PublicKey } from './crypto/pubkey.js';
 import { CosmosEndpoint, SolanaEndpoint } from './endpoints.js';
 import { CosmosNetworkConfig, SolanaNetworkConfig, type NetworkConfig } from './networks.js';
 
-const middlewares: Middleware[] = [];
+const MiddlewareRegistered = Symbol('MiddlewareRegistered');
 
 export interface Middleware {
   addresses: MiddlewareAddresses;
@@ -134,28 +134,33 @@ class MiddlewarePipeline<KP extends string[]> {
   #extract = (mw: MiddlewareImpl) => this.kp.reduce((acc: any, key) => acc?.[key], mw) as MiddlewareImpl;
 }
 
-mw.stack = middlewares;
+mw.stack = new Array<Middleware>();
 mw.use = (...mws: MiddlewareImpl[]) => {
-  middlewares.push(...mws as Middleware[]);
+  mws = mws.filter(mw => !(mw as any)[MiddlewareRegistered]);
+  console.log('mws', mws);
+  mw.stack.push(...mws as Middleware[]);
+  for (const mw of mws) {
+    (mw as any)[MiddlewareRegistered] = true;
+  }
   return () => {
     for (const curr of mws) {
-      const index = middlewares.indexOf(curr as Middleware);
-      if (index !== -1) middlewares.splice(index, 1);
+      const index = mw.stack.indexOf(curr as Middleware);
+      if (index !== -1) mw.stack.splice(index, 1);
     }
   };
 };
 
 function* forwardIterator(extract: (mw: MiddlewareImpl) => any) {
-  for (const mw of middlewares) {
-    const cb = extract(mw);
+  for (const curr of mw.stack) {
+    const cb = extract(curr);
     if (typeof cb !== 'function') continue;
     yield cb;
   }
 }
 
 function* backwardIterator(extract: (mw: MiddlewareImpl) => any) {
-  for (const mw of [...middlewares].reverse()) {
-    const cb = extract(mw);
+  for (const curr of [...mw.stack].reverse()) {
+    const cb = extract(curr);
     if (typeof cb !== 'function') continue;
     yield cb;
   }
