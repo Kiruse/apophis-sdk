@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'bun:test';
-import { NetworkConfig } from '../../types.js';
-import { Any, registerDefaultProtobufs } from './any.js';
-import { fromBase64, fromUtf8, toBase64, toUtf8 } from '../../utils.js';
 import { mw } from '../../middleware.js';
 import { network } from '../../test-helpers.js';
+import { Bytes, NetworkConfig } from '../../types.js';
+import { fromBase64, fromUtf8, toBase64, toUtf8 } from '../../utils.js';
+import { Any, ProtobufMiddleware, registerDefaultProtobufs } from './any.js';
 import { AnyMarshaller } from './marshaller.js';
+
+mw.use(ProtobufMiddleware);
 
 class CustomProtobuf {
   static readonly protobufTypeUrl = '/test';
@@ -27,7 +29,7 @@ describe('Any', () => {
     const marshalled = AnyMarshaller.marshal(ref) as any;
     const unmarshalled = AnyMarshaller.unmarshal(marshalled) as any;
     expect(marshalled.typeUrl).toEqual('/test');
-    expect(marshalled.value).toEqual(toBase64(fromUtf8('foobar')));
+    expect(marshalled.value).toEqual(fromUtf8('foobar'));
     expect(unmarshalled).toEqual(ref);
   });
 
@@ -36,7 +38,7 @@ describe('Any', () => {
     const marshalled = Any.encode(network, ref);
     const unmarshalled: any = Any.decode(network, marshalled);
     expect(marshalled.typeUrl).toEqual('/test');
-    expect(toBase64(marshalled.value)).toEqual(toBase64(fromUtf8('foobar')));
+    expect(b64(marshalled.value)).toEqual(b64(fromUtf8('foobar')));
     expect(unmarshalled).toEqual(ref);
   });
 
@@ -51,7 +53,7 @@ describe('Any', () => {
         decode(network: NetworkConfig, encoding: string, value: any) {
           if (encoding !== 'protobuf') return;
           if (!Any.isAny(value, '/test2')) return;
-          const valueStr = toUtf8(value.value);
+          const valueStr = utf8(value.value);
           if (valueStr.startsWith('custom:')) {
             return new CustomProtobuf(fromBase64(valueStr.slice(7)));
           }
@@ -63,7 +65,7 @@ describe('Any', () => {
     const marshalled = Any.encode(network, ref);
     const unmarshalled: any = Any.decode(network, marshalled);
     expect(marshalled.typeUrl).toEqual('/test2');
-    expect(toUtf8(marshalled.value)).toEqual('custom:' + toBase64(fromUtf8('foobar')));
+    expect(utf8(marshalled.value)).toEqual('custom:' + b64(fromUtf8('foobar')));
     expect(unmarshalled).toEqual(ref);
 
     unuse();
@@ -80,3 +82,6 @@ describe('Any', () => {
     expect(Any.isAny(Any.encode(network, ref))).toBeTrue();
   });
 });
+
+const b64 = (value: Bytes) => typeof value === 'string' ? value : toBase64(value);
+const utf8 = (value: Bytes) => typeof value === 'string' ? value : toUtf8(value);

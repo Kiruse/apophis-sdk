@@ -1,8 +1,8 @@
-import { endpoints, type NetworkConfig } from '@apophis-sdk/core';
+import { CosmosNetworkConfig, endpoints, ExternalAccount, Signer, type NetworkConfig } from '@apophis-sdk/core';
 import { addresses } from '@apophis-sdk/core/address.js';
 import { pubkey, PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
 import { BroadcastMode } from '@apophis-sdk/core/types.sdk.js';
-import { bytes } from '@apophis-sdk/core/utils.js';
+import * as utils from '@apophis-sdk/core/utils.js';
 import * as bip32 from '@scure/bip32';
 import * as bip39 from '@scure/bip39';
 import { wordlist as _wordlist } from '@scure/bip39/wordlists/english';
@@ -10,20 +10,27 @@ import { hmac } from '@noble/hashes/hmac';
 import { sha256 } from '@noble/hashes/sha256';
 import * as secp256k1 from '@noble/secp256k1';
 import { Cosmos } from './api.js';
-import { CosmosSigner } from './signer.js';
 import { CosmosTx } from './tx.js';
 
 secp256k1.etc.hmacSha256Sync = (k, ...m) => hmac(sha256, k, secp256k1.etc.concatBytes(...m));
 
-export class LocalSigner extends CosmosSigner {
+var signers = new Set<WeakRef<LocalSigner>>();
+
+export class LocalSigner extends Signer<CosmosTx> {
   static readonly instance = new LocalSigner();
 
   #privateKey: Uint8Array | undefined;
   #seed: Uint8Array | undefined;
+  #networks: CosmosNetworkConfig[] = [];
   readonly type = 'local';
   readonly canAutoReconnect = true;
   readonly displayName = 'Local';
   readonly logoURL = undefined;
+
+  constructor() {
+    super();
+    signers.add(new WeakRef(this));
+  }
 
   setPrivateKey(privateKey: Uint8Array) {
     if (privateKey.length !== 32) throw new Error('Invalid private key length');
@@ -41,9 +48,21 @@ export class LocalSigner extends CosmosSigner {
     return Promise.resolve(true);
   }
 
-  async connect(networks: NetworkConfig[]) {
-    await this._initSignData(networks);
-    Cosmos.watchSigner(this);
+  async connect(networks: CosmosNetworkConfig[]): Promise<ExternalAccount[]> {
+    if (!networks.length) throw new Error('No networks provided');
+    this.#networks = networks;
+    for (const network of networks) {
+      this.initAccounts(network, [this.getPublicKey(network)]);
+    }
+    await this.updateSignData(networks);
+    return this.accounts.peek();
+  }
+
+  /** Update sign data of all accounts on the given networks. Assumes that the `accounts` have already been initialized. */
+  async updateSignData(networks = this.#networks): Promise<ExternalAccount[]> {
+    const accounts = this.accounts.peek();
+    await Promise.all(accounts.map(acc => acc.update(networks)));
+    return accounts.flat();
   }
 
   async sign(network: NetworkConfig, tx: CosmosTx): Promise<CosmosTx> {
@@ -52,7 +71,7 @@ export class LocalSigner extends CosmosSigner {
     const signature = secp256k1.sign(bs, this.#getPrivateKey(network));
     const sigBytes = signature.toCompactRawBytes();
     if (sigBytes.length !== 64) throw new Error('Invalid signature length');
-    if (!secp256k1.verify(sigBytes, bs, bytes(this.getSignData(network)[0].publicKey.bytes), { lowS: true }))
+    if (!secp256k1.verify(sigBytes, bs, utils.bytes(this.getPublicKey(network).bytes), { lowS: true }))
       throw new Error('Invalid signature');
 
     tx.setSignature(network, this, sigBytes);
@@ -75,12 +94,6 @@ export class LocalSigner extends CosmosSigner {
     return response.txhash;
   }
 
-  protected async getAccounts(network: NetworkConfig): Promise<{ address: string; publicKey: PublicKey; }[]> {
-    const priv = this.#getPrivateKey(network);
-    const pub = pubkey.secp256k1(secp256k1.getPublicKey(priv, true));
-    return [{ address: addresses.compute(network, pub), publicKey: pub }];
-  }
-
   #getPrivateKey(network: NetworkConfig, accountIndex = 0, addressIndex = 0) {
     if (network.ecosystem !== 'cosmos') throw new Error('Currently, only Cosmos chains are supported');
     if (this.#privateKey) return this.#privateKey;
@@ -88,6 +101,22 @@ export class LocalSigner extends CosmosSigner {
     const key = bip32.HDKey.fromMasterSeed(this.#seed).derive(`m/44'/${network.slip44 ?? 118}'/${accountIndex}'/0/${addressIndex}`);
     if (!key.privateKey) throw new Error('Failed to derive private key');
     return key.privateKey;
+  }
+
+  getPublicKey(network: NetworkConfig, accountIndex = 0, addressIndex = 0) {
+    const priv = this.#getPrivateKey(network, accountIndex, addressIndex);
+    return pubkey.secp256k1(secp256k1.getPublicKey(priv, true));
+  }
+
+  getPublicKeys(networks: NetworkConfig[]) {
+    const keys: Record<string, PublicKey> = {};
+    for (const network of networks) {
+      const pub = this.getPublicKey(network);
+      const bs = typeof pub.bytes === 'string' ? pub.bytes : utils.toBase64(pub.bytes);
+      const key = `${pub.type}:${bs}`;
+      keys[key] = pub;
+    }
+    return Object.values(keys);
   }
 
   static generateMnemonic(wordlist = _wordlist, strength = 256) {

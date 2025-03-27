@@ -1,65 +1,17 @@
 import { mw } from '@apophis-sdk/core';
-import { addresses } from '@apophis-sdk/core/address.js';
-import { pubkey } from '@apophis-sdk/core/crypto/pubkey.js';
 import { Any } from '@apophis-sdk/core/encoding/protobuf/any.js';
-import { type CosmosNetworkConfig } from '@apophis-sdk/core/networks.js';
-import { Signer } from '@apophis-sdk/core/signer.js';
 import { network } from '@apophis-sdk/core/test-helpers.js';
-import { fromHex, toBase64, toHex } from '@apophis-sdk/core/utils.js';
-import * as secp256k1 from '@noble/secp256k1';
+import { fromHex } from '@apophis-sdk/core/utils.js';
 import { describe, expect, test } from 'bun:test';
 import { SignMode } from 'cosmjs-types/cosmos/tx/signing/v1beta1/signing.js';
 import { Tx as SdkTx, Tx } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
-import { Amino } from './encoding/amino.js';
 import { DefaultCosmosMiddlewares } from './middleware.js';
-import { CosmosTx, CosmosTxAmino, CosmosTxDirect } from './tx.js';
+import { CosmosTxAmino, CosmosTxDirect } from './tx.js';
 import { Bank } from './msg/bank.js';
 import { Cosmos } from './index.js';
+import { LocalSigner } from './local-signer.js';
 
 mw.use(...DefaultCosmosMiddlewares);
-
-class MockSigner extends Signer {
-  readonly type = 'mock';
-  readonly displayName = 'Mock';
-  readonly logoURL = undefined;
-  readonly canAutoReconnect = false;
-
-  constructor(private readonly privateKey: Uint8Array) {
-    super();
-    this.available.value = true;
-    this.signDatas.value = new Map([[network, [{
-      publicKey: pubkey.secp256k1(secp256k1.getPublicKey(privateKey, true)),
-      address: addresses.compute(network, pubkey.secp256k1(secp256k1.getPublicKey(privateKey, true))),
-      accountNumber: 1n,
-      sequence: 0n,
-    }]]]);
-  }
-
-  async probe() {
-    return true;
-  }
-
-  async connect() {}
-
-  async sign(network: CosmosNetworkConfig, tx: CosmosTx) {
-    const bytes = tx.signBytes(network, this);
-    const signature = await secp256k1.signAsync(bytes, this.privateKey);
-    tx.setSignature(network, this, signature.toCompactRawBytes());
-    return tx;
-  }
-
-  broadcast(tx: CosmosTx): Promise<string> {
-    throw new Error('Not implemented');
-  }
-
-  protected async getAccounts(network: CosmosNetworkConfig) {
-    const publicKey = pubkey.secp256k1(secp256k1.getPublicKey(this.privateKey, true));
-    return [{
-      address: addresses.compute(network, publicKey),
-      publicKey,
-    }];
-  }
-}
 
 const TEST_PRIVKEY = fromHex('deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef');
 
@@ -87,9 +39,12 @@ const REF_AMINO_BYTES = fromHex('0a4c0a4a0a1c2f636f736d6f732e62616e6b2e763162657
 // accepted by the chain.
 describe('CosmosTx', () => {
   describe('CosmosTxDirect', () => {
-    test('sdkTx', () => {
+    test('sdkTx', async () => {
       const tx = new CosmosTxDirect([MSG]);
-      const signer = new MockSigner(TEST_PRIVKEY);
+      const signer = new LocalSigner().setPrivateKey(TEST_PRIVKEY);
+      await signer.connect([network]);
+      const acc = signer.getAccount(network);
+      acc.setSignData(network, 1n, 0n);
 
       expect(tx.sdkTx(network, signer)).toEqual(SdkTx.fromPartial({
         body: {
@@ -107,7 +62,7 @@ describe('CosmosTx', () => {
                   mode: SignMode.SIGN_MODE_DIRECT,
                 },
               },
-              publicKey: Any.encode(network, signer.getSignData(network)[0].publicKey) as any,
+              publicKey: Any.encode(network, acc.publicKey) as any,
               sequence: 0n,
             }
           ],
@@ -124,7 +79,11 @@ describe('CosmosTx', () => {
 
     test('fullSdkTx', async () => {
       const tx = new CosmosTxDirect([MSG]);
-      const signer = new MockSigner(TEST_PRIVKEY);
+      const signer = new LocalSigner().setPrivateKey(TEST_PRIVKEY);
+      await signer.connect([network]);
+      const acc = signer.getAccount(network);
+      acc.setSignData(network, 1n, 0n);
+
       tx.gas = {
         amount: [{ denom: 'tntrn', amount: 1n }],
         gasLimit: 200000n,
@@ -147,7 +106,7 @@ describe('CosmosTx', () => {
                   mode: SignMode.SIGN_MODE_DIRECT,
                 },
               },
-              publicKey: Any.encode(network, signer.getSignData(network)[0].publicKey) as any,
+              publicKey: Any.encode(network, acc.publicKey) as any,
               sequence: 0n,
             }
           ],
@@ -163,9 +122,12 @@ describe('CosmosTx', () => {
   });
 
   describe('CosmosTxAmino', () => {
-    test('sdkTx', () => {
+    test('sdkTx', async () => {
       const tx = new CosmosTxAmino([MSG]);
-      const signer = new MockSigner(TEST_PRIVKEY);
+      const signer = new LocalSigner().setPrivateKey(TEST_PRIVKEY);
+      await signer.connect([network]);
+      const acc = signer.getAccount(network);
+      acc.setSignData(network, 1n, 0n);
 
       expect(tx.sdkTx(network, signer)).toEqual(SdkTx.fromPartial({
         body: {
@@ -183,7 +145,7 @@ describe('CosmosTx', () => {
                   mode: SignMode.SIGN_MODE_LEGACY_AMINO_JSON,
                 },
               },
-              publicKey: Any.encode(network, signer.getSignData(network)[0].publicKey) as any,
+              publicKey: Any.encode(network, acc.publicKey) as any,
               sequence: 0n,
             }
           ],
@@ -200,7 +162,11 @@ describe('CosmosTx', () => {
 
     test('fullSdkTx', async () => {
       const tx = new CosmosTxAmino([MSG]);
-      const signer = new MockSigner(TEST_PRIVKEY);
+      const signer = new LocalSigner().setPrivateKey(TEST_PRIVKEY);
+      await signer.connect([network]);
+      const acc = signer.getAccount(network);
+      acc.setSignData(network, 1n, 0n);
+
       tx.gas = {
         amount: [{ denom: 'tntrn', amount: 1n }],
         gasLimit: 200000n,
@@ -221,7 +187,7 @@ describe('CosmosTx', () => {
                   mode: SignMode.SIGN_MODE_LEGACY_AMINO_JSON,
                 },
               },
-              publicKey: Any.encode(network, signer.getSignData(network)[0].publicKey) as any,
+              publicKey: Any.encode(network, acc.publicKey) as any,
               sequence: 0n,
             }
           ],

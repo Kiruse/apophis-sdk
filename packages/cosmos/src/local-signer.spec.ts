@@ -1,7 +1,7 @@
 /// <reference path="../../../node_modules/bun-types/index.d.ts" />
+import { type CosmosNetworkConfig, FungibleAsset, mw, NetworkConfig } from '@apophis-sdk/core';
 import { describe, expect, test } from 'bun:test';
 import { LocalSigner } from './local-signer.js';
-import { FungibleAsset, mw, NetworkConfig } from '@apophis-sdk/core';
 import { DefaultCosmosMiddlewares } from './middleware.js';
 
 const MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
@@ -39,7 +39,7 @@ const assets: Record<string, FungibleAsset> = {
   },
 }
 
-const networks: Record<string, NetworkConfig> = {
+const networks: Record<string, CosmosNetworkConfig> = {
   cosmoshub: {
     ecosystem: 'cosmos',
     chainId: 'cosmoshub-4',
@@ -100,6 +100,6 @@ describe('Local Signer', () => {
     expect(signer.address(networks.neutron)).toBe(ADDR_NEUTRON);
     expect(signer.address(networks.terra)).toBe(ADDR_TERRA);
     // special injective case: address is computed differently
-    // expect(signer.address(networks.injective)).toBe(ADDR_INJ);
+    // expect(signer.address(networks.injective)).toBe(ADDR_INJ)
   });
 });

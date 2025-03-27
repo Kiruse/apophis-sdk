@@ -1,11 +1,7 @@
-import * as secp256k1 from '@noble/secp256k1';
 import { describe, expect, test } from 'bun:test';
 import { addresses, MemoryAddressBook } from './address';
-import { MiddlewarePipelineError, mw } from './middleware';
-import { network } from './test-helpers';
-import { pubkey } from './crypto/pubkey';
+import { mw } from './middleware';
 
-mw.use({}); // used to test fifo - missing middleware methods and/or undefined result should be ignored
 mw.use(MemoryAddressBook);
 
 describe('addresses', () => {
@@ -35,15 +31,5 @@ describe('addresses', () => {
 
     expect(addresses.resolve('alice')).toBe(alice);
     expect(addresses.resolve('bob')).toBe(bob);
-  });
-
-  test('compute', () => {
-    const alicePriv = secp256k1.utils.randomPrivateKey();
-    const alicePub = pubkey.secp256k1(secp256k1.getPublicKey(alicePriv));
-    const bobPriv = secp256k1.utils.randomPrivateKey();
-    const bobPub = pubkey.secp256k1(secp256k1.getPublicKey(bobPriv));
-
-    expect(() => addresses.compute(network, alicePub)).not.toThrowError(MiddlewarePipelineError);
-    expect(() => addresses.compute(network, bobPub)).not.toThrowError(MiddlewarePipelineError);
   });
 });

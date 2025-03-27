@@ -1,4 +1,4 @@
-import { Any, Bytes, config, type CosmosNetworkConfig, type Signer, TxBase, TxStatus } from '@apophis-sdk/core';
+import { Any, Bytes, config, type CosmosNetworkConfig, ExternalAccount, type Signer, TxBase, TxStatus } from '@apophis-sdk/core';
 import type { Gas } from '@apophis-sdk/core/types.sdk.js';
 import { extendDefaultMarshaller, IgnoreMarshalUnit } from '@kiruse/marshal';
 import { Decimal } from '@kiruse/decimal';
@@ -172,12 +172,14 @@ export class CosmosTxDirect extends CosmosTxBase<SdkTxDirect> {
    */
   signDoc(network: CosmosNetworkConfig, signer: Signer): SignDoc {
     if (!this.gas) throw new Error('Gas not set');
+    const signData = signer.getSignData(network);
+    if (!ExternalAccount.isComplete(signData)) throw new Error('Sign data incomplete');
     const sdktx = this.sdkTx(network, signer);
     return SignDoc.fromPartial({
       bodyBytes: TxBody.encode(sdktx.body!).finish(),
       authInfoBytes: AuthInfo.encode(sdktx.authInfo!).finish(),
       chainId: network.chainId,
-      accountNumber: signer.getSignData(network)[0].accountNumber,
+      accountNumber: signData.accountNumber,
     });
   }
 
@@ -188,7 +190,9 @@ export class CosmosTxDirect extends CosmosTxBase<SdkTxDirect> {
   /** Get a partial Cosmos SDK Tx object. This does not require gas or signature, in which case it can be used for simulation (including gas estimation). */
   sdkTx(network: CosmosNetworkConfig, signer: Signer, signature: Uint8Array = new Uint8Array()): SdkTxDirect {
     if (!this.messages.length) throw new Error('No messages provided');
-    const { publicKey, sequence } = signer.getSignData(network)[0];
+    const signData = signer.getSignData(network);
+    if (!ExternalAccount.isComplete(signData)) throw new Error('Sign data incomplete');
+    const { publicKey, sequence } = signData;
     if (!network || !publicKey) throw new Error('Account not bound');
     return SdkTxDirect.fromPartial(TxMarshaller.marshal({
       body: {
@@ -236,8 +240,8 @@ export class CosmosTxAmino extends CosmosTxBase<SdkTxDirect> {
   }
 
   signDoc(network: CosmosNetworkConfig, signer: Signer) {
-    const signData = signer.getSignData(network)[0];
-    if (!signData) throw new Error('Signer not bound');
+    const signData = signer.getSignData(network);
+    if (!ExternalAccount.isComplete(signData)) throw new Error('Sign data incomplete');
     const mwstack = mw('encoding', 'encode').inv();
     return Amino.normalize({
       chainId: network.chainId,
@@ -259,8 +263,8 @@ export class CosmosTxAmino extends CosmosTxBase<SdkTxDirect> {
   sdkTx(network: CosmosNetworkConfig, signer: Signer, signature: Uint8Array = new Uint8Array()) {
     if (!this.messages.length) throw new Error('No messages provided');
 
-    const signerData = signer.getSignData(network)[0];
-    if (!signerData) throw new Error('Signer not bound');
+    const signerData = signer.getSignData(network);
+    if (!ExternalAccount.isComplete(signerData)) throw new Error('Sign data incomplete');
 
     // NOTE: amino is deprecated. with the introduction of protobuf, the SDK also introduced the
     // SIGN_MODE_LEGACY_AMINO_JSON type. this type adds backwards compatibility to the new Tx type

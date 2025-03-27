@@ -1,11 +1,9 @@
 import { type FungibleAsset } from '@apophis-sdk/core';
-import { addresses } from '@apophis-sdk/core/address.js';
 import { endpoints } from '@apophis-sdk/core/endpoints.js';
 import { BytesMarshalUnit } from '@apophis-sdk/core/marshal.js';
 import type { CosmosNetworkConfig, NetworkConfig } from '@apophis-sdk/core/networks.js';
 import { PowerSocket } from '@apophis-sdk/core/powersocket.js';
 import * as signals from '@apophis-sdk/core/signals.js';
-import type { SignData, Signer } from '@apophis-sdk/core/signer.js';
 import {
   BroadcastMode,
   type TransactionResult,
@@ -30,6 +28,7 @@ import { Tx as SdkTxDirect } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { BlockID } from 'cosmjs-types/tendermint/types/types.js';
 import { TendermintQuery } from './tmquery.js';
 import { type CosmosTx, CosmosTxAmino, CosmosTxBase, CosmosTxDirect, CosmosTxEncoding } from './tx.js';
+import { PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
 
 type Unsub = () => void;
 
@@ -49,8 +48,6 @@ const { marshal, unmarshal } = extendDefaultMarshaller([
 export const Cosmos = new class {
   #apis = new Map<CosmosNetworkConfig, BasicRestApi>();
   #sockets = new Map<CosmosNetworkConfig, CosmosWebSocket>();
-  #signers: WeakRef<Signer>[] = [];
-  #networkWatchers = new Map<CosmosNetworkConfig, Unsub>();
 
   /** Get a bound REST API. When undefined, gets the REST API for the current `defaultNetwork` signal
    * value. If that, too, is undefined, throws an error. Note that this associates the concrete
@@ -86,7 +83,6 @@ export const Cosmos = new class {
   }
 
   async getAccountInfo(network: NetworkConfig, address: string) {
-    if (!network || !address) throw new Error('Account not bound to a network');
     if (network.ecosystem !== 'cosmos') throw new Error('Network is not a Cosmos chain');
     // TODO: this should handle 429s & retry automatically
     const { info } = await this.rest(network).cosmos.auth.v1beta1.account_info[address]('GET');
@@ -96,107 +92,6 @@ export const Cosmos = new class {
       publicKey: info.pub_key,
       sequence: info.sequence,
     };
-  }
-
-  /** Watch a signer for network updates. This keeps the signer's sequence numbers in sync and
-   * updates the account number if the account hadn't been seen yet.
-   */
-  watchSigner(signer: Signer) {
-    const found = this.#signers.find(ref => ref.deref() === signer);
-    if (!found) this.#signers.push(new WeakRef(signer));
-    this.#updateNetworkWatchers();
-  }
-
-  #updateNetworkWatchers() {
-    const prevNetworks = new Set(this.#networkWatchers.keys());
-    const networks = new Set<CosmosNetworkConfig>();
-    for (const ref of this.#signers) {
-      const signer = ref.deref();
-      if (!signer) continue;
-      signer.networks.value.forEach(network => {
-        if (network.ecosystem !== 'cosmos') return;
-        networks.add(network);
-      });
-    }
-
-    const droppedNetworks = setDiff(prevNetworks, networks);
-    for (const network of droppedNetworks) {
-      this.#networkWatchers.get(network)?.();
-      this.#networkWatchers.delete(network);
-    }
-
-    const addedNetworks = setDiff(networks, prevNetworks);
-    for (const network of addedNetworks) {
-      this.#watchNetwork(network);
-    }
-
-    this.#purgeSigners();
-  }
-
-  #watchNetwork(network: CosmosNetworkConfig) {
-    // we do things by address here primarily, so it's easiest to build a map of all addresses to signDatas
-    const buildSignDataMap = () => {
-      const result: Record<string, SignData[]> = {};
-      const signers = this.#signers
-        .map(s => s.deref())
-        .filter(s => !!s)
-        .filter(s => s.networks.value.includes(network));
-      for (const signer of signers) {
-        const signDatas = signer.getSignData(network);
-        for (const signData of signDatas) {
-          result[signData.address] ??= [];
-          result[signData.address].push(signData);
-        }
-      }
-      return result;
-    }
-
-    // watch for blocks involving our addresses as signers
-    const unsub1 = this.ws(network).onBlock(async block => {
-      this.#purgeSigners();
-      const txs = block.txs.map(tx => Cosmos.tryDecodeTx(tx)).filter(tx => typeof tx !== 'string');
-      const signerInfos = txs.flatMap(tx => tx.authInfo?.signerInfos).filter(info => !!info);
-      const signDataMap = buildSignDataMap();
-
-      for (const signerInfo of signerInfos) {
-        const txPubkey = fromSdkPublicKey(signerInfo.publicKey!);
-        const txAddress = addresses.compute(network, txPubkey);
-        if (signDataMap[txAddress]) {
-          signDataMap[txAddress].forEach(signData => {
-            if (signData.sequence < signerInfo.sequence + 1n)
-              signData.sequence = signerInfo.sequence + 1n;
-            // if account number is 0, it has just been created. fetch its number
-            if (signData.accountNumber === 0n) {
-              Cosmos.getAccountInfo(network, signData.address).then(({ accountNumber }) => {
-                signData.accountNumber = accountNumber;
-              }).catch(() => { console.warn('Failed to fetch account number for ', signData.address) });
-            }
-          });
-        }
-      }
-    });
-
-    // upon reconnecting, update the sequence number for all accounts
-    const unsub2 = this.ws(network).socket.onReconnect(async () => {
-      this.#purgeSigners();
-      const signDataMap = buildSignDataMap();
-      for (const [address, signDatas] of Object.entries(signDataMap)) {
-        const { sequence, accountNumber } = await this.getAccountInfo(network, address).catch(() => ({ sequence: 0n, accountNumber: 0n }));
-        for (const signData of signDatas) {
-          if (signData.sequence < sequence) signData.sequence = sequence;
-          if (signData.accountNumber === 0n) signData.accountNumber = accountNumber;
-        }
-      }
-    });
-
-    this.#networkWatchers.set(network, () => {
-      unsub1();
-      unsub2();
-    });
-  }
-
-  #purgeSigners() {
-    this.#signers = this.#signers.filter(ref => ref.deref() !== undefined);
   }
 
   /** Create a new transaction with the given messages. */

@@ -1,6 +1,5 @@
 import { ProtobufMiddleware } from './encoding/protobuf/any.js';
 import { mw } from './middleware.js';
-import type { Signer } from './signer.js';
 
 export * from './address.js';
 export { Any } from './encoding/protobuf/any.js';

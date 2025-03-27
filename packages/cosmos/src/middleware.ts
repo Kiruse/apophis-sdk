@@ -1,8 +1,9 @@
 import { DefaultMiddlewares } from '@apophis-sdk/core';
-import type { CosmosEndpoint, CosmosEndpoints, CosmosNetworkConfig } from '@apophis-sdk/core';
+import type { CosmosEndpoint, CosmosEndpoints, CosmosNetworkConfig, ExternalAccount, NetworkConfig } from '@apophis-sdk/core';
 import type { MiddlewareImpl } from '@apophis-sdk/core/middleware.js';
 import { CosmosPubkeyMiddleware } from './crypto/pubkey';
 import { AminoMiddleware } from './encoding/amino';
+import { Cosmos } from './api';
 
 const store = new Map<CosmosNetworkConfig, CosmosEndpoints>();
 
@@ -18,7 +19,8 @@ export function setEndpoint(network: CosmosNetworkConfig, which: CosmosEndpoint,
 }
 
 export const CosmosMiddleware: MiddlewareImpl = {
-  endpoints: { get, list },
+  accounts: { update: updateAccount },
+  endpoints: { get: getEndpoint, list: listEndpoints },
 };
 
 export const DefaultCosmosMiddlewares = [
@@ -28,11 +30,27 @@ export const DefaultCosmosMiddlewares = [
   AminoMiddleware,
 ];
 
-function get(network: CosmosNetworkConfig, which: CosmosEndpoint): string | undefined {
-  return list(network, which)?.[0];
+async function updateAccount(account: ExternalAccount, network: NetworkConfig) {
+  if (network.ecosystem !== 'cosmos') return;
+  const signData = account.getSignData(network);
+  const curr = signData.peek();
+  try {
+    const info = await Cosmos.getAccountInfo(network, curr.address);
+    signData.value = {
+      ...curr,
+      accountNumber: info.accountNumber,
+      sequence: info.sequence,
+    };
+  } catch {
+    console.warn(`Failed to update account info for ${curr.address} on ${network.chainId}`);
+  }
 }
 
-function list(network: CosmosNetworkConfig, which: CosmosEndpoint): string[] | undefined {
+function getEndpoint(network: CosmosNetworkConfig, which: CosmosEndpoint): string | undefined {
+  return listEndpoints(network, which)?.[0];
+}
+
+function listEndpoints(network: CosmosNetworkConfig, which: CosmosEndpoint): string[] | undefined {
   if (network.ecosystem !== 'cosmos') return undefined;
 
   const stored = store.get(network)?.[which];

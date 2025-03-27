@@ -1,15 +1,21 @@
 import { PublicKey } from './crypto/pubkey.js';
 import { CosmosEndpoint, SolanaEndpoint } from './endpoints.js';
 import { CosmosNetworkConfig, SolanaNetworkConfig, type NetworkConfig } from './networks.js';
+import { ExternalAccount } from './signer.js';
 
 const MiddlewareRegistered = Symbol('MiddlewareRegistered');
 
 export interface Middleware {
+  accounts: MiddlewareAccounts;
   addresses: MiddlewareAddresses;
   beta: MiddlewareBeta;
   /** `endpoints` middleware for retrieving & listing endpoints for a network. */
   endpoints: MiddlewareEndpoints;
   encoding: MiddlewareEncoding;
+}
+
+export interface MiddlewareAccounts {
+  update(account: ExternalAccount, network: NetworkConfig): Promise<void>;
 }
 
 export interface MiddlewareAddresses {
@@ -102,6 +108,21 @@ class MiddlewarePipeline<KP extends string[]> {
     }
   }
 
+  /** Async version of `fifo`. Every middleware must be async. */
+  async fifoAsync(...args: FifoArgs<KP>): Promise<Awaited<Defined<FifoResult<KP>>>> {
+    const result = await this.fifoAsyncMaybe(...args);
+    if (!result) throw new MiddlewarePipelineError(`No FIFO middleware handled the call`);
+    return result;
+  }
+
+  /** Async version of `fifoMaybe`. Every middleware must be async. */
+  async fifoAsyncMaybe(...args: FifoArgs<KP>): Promise<Awaited<Defined<FifoResult<KP>>> | undefined> {
+    for (const cb of this.iterator(this.#extract)) {
+      const result = await cb(...args);
+      if (result) return result;
+    }
+  }
+
   /** Notify all middlewares with the given arguments. Awaits all middlewares to complete. Uncaught errors are logged to console. */
   async notify(...args: NotifyArgs<KP>): Promise<void> {
     const mws = [...this.iterator(this.#extract)];
@@ -137,7 +158,6 @@ class MiddlewarePipeline<KP extends string[]> {
 mw.stack = new Array<Middleware>();
 mw.use = (...mws: MiddlewareImpl[]) => {
   mws = mws.filter(mw => !(mw as any)[MiddlewareRegistered]);
-  console.log('mws', mws);
   mw.stack.push(...mws as Middleware[]);
   for (const mw of mws) {
     (mw as any)[MiddlewareRegistered] = true;
