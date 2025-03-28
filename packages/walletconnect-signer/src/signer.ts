@@ -9,12 +9,36 @@ import { AuthInfo, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { type WalletConnectSignerConfig } from './config';
 import { WalletConnectSignerError, WalletConnectSignerNotConnectedError } from './error';
 import LOGO_DATA_URL from './logo';
-import { prompt } from './prompt';
 import { PeerAccount, SignClient, SignResponse } from './types.api';
 
 export interface WCSignerBase {
-  signClient: ReadonlySignal<SignClient | undefined>;
+  /** Get the current connection state. If `undefined`, no connection has been attempted yet. */
+  get state(): ReadonlySignal<ConnectState | undefined>;
 }
+
+export type ConnectState = ConnectState.Pending | ConnectState.Connected | ConnectState.Error;
+
+export namespace ConnectState {
+  export interface Pending {
+    state: 'pending';
+    uri: string | undefined;
+    /** Cancel the current connection attempt. Will set the state to `error` with a `WalletConnectSignerError` with message `Cancelled`. */
+    cancel: () => void;
+    timestamp: Date;
+  }
+  export interface Connected {
+    state: 'connected';
+    session: SessionTypes.Struct;
+    timestamp: Date;
+  }
+  export interface Error {
+    state: 'error';
+    error: any;
+    timestamp: Date;
+  }
+}
+
+export type ConnectResponse = Awaited<ReturnType<SignClient['connect']>>;
 
 var signers = new Set<WeakRef<WalletConnectCosmosSigner>>();
 
@@ -22,7 +46,7 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
   #session: SessionTypes.Struct | undefined;
   #signClient: Promise<SignClient>;
   #networks: CosmosNetworkConfig[] = [];
-  readonly signClient = signal<SignClient | undefined>();
+  #state = signal<ConnectState | undefined>();
   readonly type = 'walletconnect';
   readonly canAutoReconnect = true;
   readonly displayName = 'WalletConnect';
@@ -35,7 +59,6 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
       projectId: config.projectId,
       metadata: config.metadata,
     }).then(client => {
-      this.signClient.value = client;
       client.on('session_update', (args) => {
         if (args.topic !== this.#session?.topic) return;
         this.#session.namespaces = args.params.namespaces;
@@ -52,21 +75,89 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
     return Promise.resolve(true);
   }
 
-  async connect(networks: NetworkConfig[]) {
+  connect(networks: NetworkConfig[]) {
     console.warn('CAVEAT: This version of the WalletConnect SignClient seems to be a buggy mess. I will keep an eye on new releases. Nonetheless, these errors should not prevent the integration from working.');
-    networks = networks.filter(network => network.ecosystem === 'cosmos') as CosmosNetworkConfig[];
-    const client = await this.#signClient;
-    const session = await prompt(networks, client, this.config);
-    this.#session = session;
-    this.#networks = networks as CosmosNetworkConfig[];
+    this.#networks = networks = networks.filter(network => network.ecosystem === 'cosmos') as CosmosNetworkConfig[];
 
-    for (const network of networks) {
-      const pks = await this.getPublicKeys([network as CosmosNetworkConfig]);
-      await this.initAccounts(network, pks);
-    }
+    const init = async () => {
+      for (const network of networks) {
+        const pks = await this.getPublicKeys([network as CosmosNetworkConfig]);
+        await this.initAccounts(network, pks);
+      }
+      await this.updateSignData(networks as CosmosNetworkConfig[]);
+      return this.accounts.peek();
+    };
 
-    await this.updateSignData(networks as CosmosNetworkConfig[]);
-    return this.accounts.peek();
+    let attempts = 0;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+
+    const request = async () => {
+      const client = await this.#signClient;
+
+      const { uri, approval } = await client.connect({
+        pairingTopic: client.pairing.getAll({ active: true })[0]?.topic,
+        requiredNamespaces: {
+          cosmos: {
+            methods: ['cosmos_getAccounts', 'cosmos_signDirect', 'cosmos_signAmino'],
+            events: [],
+            chains: this.#networks.map(network => 'cosmos:' + network.chainId),
+          },
+        },
+      });
+
+      approval().then(session => {
+        clearTimeout(timeout);
+        this.#state.value = {
+          state: 'connected',
+          session,
+          timestamp: new Date(),
+        };
+      });
+
+      this.#state.value = {
+        state: 'pending',
+        uri,
+        timestamp: new Date(),
+        cancel: () => {
+          clearTimeout(timeout);
+          this.#state.value = {
+            state: 'error',
+            error: new WalletConnectSignerError('Cancelled'),
+            timestamp: new Date(),
+          };
+        },
+      };
+    };
+
+    const refresher = () => {
+      if (++attempts > 5) {
+        this.#state.value = {
+          state: 'error',
+          error: new WalletConnectSignerError('Failed to connect to WalletConnect'),
+          timestamp: new Date(),
+        };
+      }
+      request();
+      timeout = setTimeout(refresher, 25000);
+    };
+    refresher();
+
+    return new Promise<ExternalAccount[]>((resolve, reject) => {
+      const unsub = this.#state.subscribe(state => {
+        if (!state) return;
+        switch (state.state) {
+          case 'error':
+            unsub();
+            reject(state.error);
+            break;
+          case 'connected':
+            unsub();
+            this.#session = state.session;
+            init().then(resolve).catch(reject);
+            break;
+        }
+      })
+    });
   }
 
   async disconnect() {
@@ -172,6 +263,10 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
 
   #encode = (data: Uint8Array) => encode(data, this.config.encoding);
   #decode = (data: string) => decode(data, this.config.encoding);
+
+  get state() {
+    return this.#state as ReadonlySignal<ConnectState | undefined>;
+  }
 
   static async updateAll() {
     for (const signer of getSigners()) {
