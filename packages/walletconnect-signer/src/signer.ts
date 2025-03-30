@@ -4,7 +4,7 @@ import { Cosmos, CosmosTx } from '@apophis-sdk/cosmos';
 import { fromBase64, fromHex, toBase64, toHex } from '@apophis-sdk/core/utils.js';
 import { ReadonlySignal, signal } from '@preact/signals-core';
 import { SignClient as _SignClient } from '@walletconnect/sign-client';
-import { SessionTypes } from '@walletconnect/types';
+import { ProposalTypes, SessionTypes } from '@walletconnect/types';
 import { AuthInfo, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { type WalletConnectSignerConfig } from './config';
 import { WalletConnectSignerError, WalletConnectSignerNotConnectedError } from './error';
@@ -76,7 +76,6 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
   }
 
   connect(networks: NetworkConfig[]) {
-    console.warn('CAVEAT: This version of the WalletConnect SignClient seems to be a buggy mess. I will keep an eye on new releases. Nonetheless, these errors should not prevent the integration from working.');
     this.#networks = networks = networks.filter(network => network.ecosystem === 'cosmos') as CosmosNetworkConfig[];
 
     const init = async () => {
@@ -93,16 +92,25 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
     const request = async () => {
       const client = await this.#signClient;
 
-      const { uri, approval } = await client.connect({
-        pairingTopic: client.pairing.getAll({ active: true })[0]?.topic,
-        requiredNamespaces: {
-          cosmos: {
-            methods: ['cosmos_getAccounts', 'cosmos_signDirect', 'cosmos_signAmino'],
-            events: [],
-            chains: this.#networks.map(network => 'cosmos:' + network.chainId),
-          },
+      const requiredNamespaces: ProposalTypes.RequiredNamespaces = {
+        cosmos: {
+          methods: ['cosmos_getAccounts', 'cosmos_signDirect', 'cosmos_signAmino'],
+          events: [],
+          chains: this.#networks.map(network => 'cosmos:' + network.chainId),
         },
-      });
+      };
+
+      const [session] = client.find({ requiredNamespaces });
+      if (session) {
+        this.#state.value = {
+          state: 'connected',
+          session,
+          timestamp: new Date(),
+        };
+        return;
+      }
+
+      const { uri, approval } = await client.connect({ requiredNamespaces });
 
       approval()
         .then(session => {
