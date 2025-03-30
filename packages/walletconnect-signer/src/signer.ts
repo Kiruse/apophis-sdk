@@ -88,7 +88,6 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
       return this.accounts.peek();
     };
 
-    let attempts = 0;
     let timeout: ReturnType<typeof setTimeout> | undefined;
 
     const request = async () => {
@@ -105,14 +104,26 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
         },
       });
 
-      approval().then(session => {
-        clearTimeout(timeout);
-        this.#state.value = {
-          state: 'connected',
-          session,
-          timestamp: new Date(),
-        };
-      });
+      approval()
+        .then(session => {
+          clearTimeout(timeout);
+          this.#state.value = {
+            state: 'connected',
+            session,
+            timestamp: new Date(),
+          };
+        })
+        .catch(error => {
+          if (error instanceof Error && error.message === 'Proposal expired') {
+            request();
+          } else {
+            this.#state.value = {
+              state: 'error',
+              error,
+              timestamp: new Date(),
+            };
+          }
+        });
 
       this.#state.value = {
         state: 'pending',
@@ -128,19 +139,7 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
         },
       };
     };
-
-    const refresher = () => {
-      if (++attempts > 5) {
-        this.#state.value = {
-          state: 'error',
-          error: new WalletConnectSignerError('Failed to connect to WalletConnect'),
-          timestamp: new Date(),
-        };
-      }
-      request();
-      timeout = setTimeout(refresher, 25000);
-    };
-    refresher();
+    request();
 
     return new Promise<ExternalAccount[]>((resolve, reject) => {
       const unsub = this.#state.subscribe(state => {

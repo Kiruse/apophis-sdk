@@ -5,10 +5,10 @@ import { WalletConnectCosmosSigner } from '@apophis-sdk/walletconnect-signer';
 export * from '@apophis-sdk/keplr-signer';
 export * from '@apophis-sdk/walletconnect-signer';
 
-export function registerCosmosSigners(walletConnectProjectId: string | undefined) {
+export function registerCosmosSigners(walletConnectProjectId?: string) {
   Signer.register(new KeplrSigner());
   Signer.register(new LeapSigner());
   if (walletConnectProjectId) {
-    // Signer.register(new WalletConnectCosmosSigner({ projectId: walletConnectProjectId }));
+    Signer.register(new WalletConnectCosmosSigner({ projectId: walletConnectProjectId }));
   }
 }
