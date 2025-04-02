@@ -18,4 +18,7 @@ export { mw };
 
 export const Apophis = {
   use: mw.use,
+  init: async () => {
+    await mw('core', 'init').notify();
+  },
 };

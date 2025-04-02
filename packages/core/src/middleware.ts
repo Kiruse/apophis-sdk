@@ -9,6 +9,7 @@ export interface Middleware {
   accounts: MiddlewareAccounts;
   addresses: MiddlewareAddresses;
   beta: MiddlewareBeta;
+  core: MiddlewareCore;
   /** `endpoints` middleware for retrieving & listing endpoints for a network. */
   endpoints: MiddlewareEndpoints;
   encoding: MiddlewareEncoding;
@@ -25,6 +26,14 @@ export interface MiddlewareAddresses {
 }
 
 export interface MiddlewareBeta {}
+
+export interface MiddlewareCore {
+  /** Notify hook that middlewares can use to initialize themselves. Called during
+   * `Apophis.init()`. SDK consumers should await `Apophis.init()`, thus awaiting all
+   * middlewares to initialize.
+   */
+  init(): Promise<void>;
+}
 
 export interface MiddlewareEndpoints {
   /** `inv().fifo` middleware for retrieving an endpoint from a network's endpoints backends, called by

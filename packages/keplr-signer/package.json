@@ -1,6 +1,6 @@
 {
   "name": "@apophis-sdk/keplr-signer",
-  "version": "0.3.0-rc.4",
+  "version": "0.3.0-rc.5",
   "author": "Kiruse",
   "repository": "https://github.com/kiruse/apophis-sdk.git",
   "type": "module",
@@ -15,8 +15,8 @@
     "tslib": "^2.6.3"
   },
   "peerDependencies": {
-    "@apophis-sdk/core": "0.3.0-rc.4",
-    "@apophis-sdk/cosmos": "0.3.0-rc.4",
+    "@apophis-sdk/core": "0.3.0-rc.5",
+    "@apophis-sdk/cosmos": "0.3.0-rc.5",
     "typescript": "^5.0.0"
   },
   "devDependencies": {
