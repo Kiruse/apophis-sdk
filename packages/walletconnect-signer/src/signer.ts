@@ -29,6 +29,8 @@ export namespace ConnectState {
   export interface Connected {
     state: 'connected';
     session: SessionTypes.Struct;
+    /** Whether this connection was restored from a previous session. */
+    restored: boolean;
     timestamp: Date;
   }
   export interface Error {
@@ -62,6 +64,9 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
       client.on('session_update', (args) => {
         if (args.topic !== this.#session?.topic) return;
         this.#session.namespaces = args.params.namespaces;
+      });
+      client.on('session_request', (args) => {
+        console.log('WC session_request', args);
       });
       // TODO: what happens when the session is deleted or expires?
       return client;
@@ -105,6 +110,7 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
         this.#state.value = {
           state: 'connected',
           session,
+          restored: true,
           timestamp: new Date(),
         };
         return;
@@ -118,6 +124,7 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
           this.#state.value = {
             state: 'connected',
             session,
+            restored: false,
             timestamp: new Date(),
           };
         })
@@ -154,11 +161,11 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
         if (!state) return;
         switch (state.state) {
           case 'error':
-            unsub();
+            setTimeout(() => unsub(), 1); // hack for when state is already set during initial run
             reject(state.error);
             break;
           case 'connected':
-            unsub();
+            setTimeout(() => unsub(), 1);
             this.#session = state.session;
             init().then(resolve).catch(reject);
             break;

@@ -1,4 +1,4 @@
-import { type FungibleAsset } from '@apophis-sdk/core';
+import { Signer, type FungibleAsset } from '@apophis-sdk/core';
 import { endpoints } from '@apophis-sdk/core/endpoints.js';
 import { BytesMarshalUnit } from '@apophis-sdk/core/marshal.js';
 import type { CosmosNetworkConfig, NetworkConfig } from '@apophis-sdk/core/networks.js';
@@ -19,7 +19,7 @@ import {
   Gas,
   Coin,
 } from '@apophis-sdk/core/types.sdk.js';
-import { fromBase64, fromHex, fromSdkPublicKey, toBase64 } from '@apophis-sdk/core/utils.js';
+import { fromBase64, fromHex, toBase64 } from '@apophis-sdk/core/utils.js';
 import { extendDefaultMarshaller, RecaseMarshalUnit } from '@kiruse/marshal';
 import { restful } from '@kiruse/restful';
 import { Event } from '@kiruse/typed-events';
@@ -28,7 +28,7 @@ import { Tx as SdkTxDirect } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { BlockID } from 'cosmjs-types/tendermint/types/types.js';
 import { TendermintQuery } from './tmquery.js';
 import { type CosmosTx, CosmosTxAmino, CosmosTxBase, CosmosTxDirect, CosmosTxEncoding } from './tx.js';
-import { PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
+import { computed, effect, ReadonlySignal, Signal, signal } from '@preact/signals';
 
 type Unsub = () => void;
 
@@ -39,6 +39,26 @@ const { marshal, unmarshal } = extendDefaultMarshaller([
   ),
   BytesMarshalUnit,
 ]);
+
+export type EstimateResult = EstimatePendingResult | EstimateSuccessResult | EstimateErrorResult;
+
+export interface EstimatePendingResult {
+  status: 'pending';
+  gas?: undefined;
+  error?: undefined;
+}
+
+export interface EstimateSuccessResult {
+  status: 'success';
+  gas: Gas;
+  error?: undefined;
+}
+
+export interface EstimateErrorResult {
+  status: 'error';
+  gas?: undefined;
+  error: any;
+}
 
 /** This is the basic Cosmos REST API that is commonly used when interfacing with the blockchain.
  * Note that it does not necessarily reflect the real REST API of the target chain as it is highly
@@ -100,6 +120,72 @@ export const Cosmos = new class {
       ? new CosmosTxAmino(messages, opts)
       : new CosmosTxDirect(messages, opts);
   coin = (amount: bigint | number | string, denom: string): Coin => ({ denom, amount: BigInt(amount) });
+
+  /** A factory for Transactions for frontends. Built on `computed`, when the messages returned by `factory`
+   * change, the transaction is automatically updated and gas estimation is re-run.
+   */
+  signalTx(
+    network: CosmosNetworkConfig | ReadonlySignal<CosmosNetworkConfig>,
+    factory: () => object[],
+    { encoding, ...opts }: {
+      gas?: Gas,
+      encoding?: CosmosTxEncoding,
+      signer?: Signer<CosmosTx>| ReadonlySignal<Signer<CosmosTx>>;
+    } = {}
+  ) {
+    if (!('value' in network)) network = signal(network);
+    const signer = opts.signer
+      ? 'value' in opts.signer
+        ? opts.signer
+        : signal(opts.signer)
+      : signals.signer;
+
+    const tx = computed(() => this.tx(factory(), opts));
+    const estimate = signal<EstimateResult>({ status: 'pending' });
+    const run = signal(0);
+
+    effect(() => {
+      if (!signer.value) {
+        estimate.value = {
+          status: 'error',
+          error: new Error('Missing signer.'),
+        };
+        return;
+      }
+
+      if (!tx.value.messages.length) {
+        estimate.value = {
+          status: 'error',
+          error: new Error('Transactions require at least one message.'),
+        };
+        return;
+      }
+
+      // DO NOT use run.value++. We DON'T want a dependency on the run signal.
+      const runId = run.peek() + 1;
+      run.value = runId;
+
+      estimate.value = { status: 'pending' };
+
+      tx.value.estimateGas(network.value, signer.value)
+        .then(gas => {
+          if (runId !== run.peek()) return;
+          estimate.value = {
+            status: 'success',
+            gas,
+          };
+        })
+        .catch(error => {
+          if (runId !== run.peek()) return;
+          estimate.value = {
+            status: 'error',
+            error,
+          }
+        });
+    });
+
+    return { tx, estimate };
+  }
 
   /** Broadcast a transaction to the network. If `async` is true, will not wait for inclusion in a
    * block and return immediately, but it also will not throw upon rejection of the transaction.

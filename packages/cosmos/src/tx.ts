@@ -1,4 +1,4 @@
-import { Any, Bytes, config, type CosmosNetworkConfig, ExternalAccount, type Signer, TxBase, TxStatus } from '@apophis-sdk/core';
+import { Any, config, type CosmosNetworkConfig, ExternalAccount, type Signer, TxBase, TxStatus } from '@apophis-sdk/core';
 import type { Gas } from '@apophis-sdk/core/types.sdk.js';
 import { extendDefaultMarshaller, IgnoreMarshalUnit } from '@kiruse/marshal';
 import { Decimal } from '@kiruse/decimal';
