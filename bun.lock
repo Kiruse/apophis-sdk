@@ -9,7 +9,7 @@
     },
     "packages/core": {
       "name": "@apophis-sdk/core",
-      "version": "0.3.0",
+      "version": "0.3.0-rc.6",
       "dependencies": {
         "@kiruse/decimal": "^1.0.5-fix.1",
         "@kiruse/marshal": "^0.2.0-rc.1",
@@ -32,7 +32,7 @@
     },
     "packages/cosmos": {
       "name": "@apophis-sdk/cosmos",
-      "version": "0.3.0",
+      "version": "0.3.0-rc.6",
       "dependencies": {
         "@scure/bip32": "^1.6.2",
         "@scure/bip39": "^1.5.4",
@@ -55,7 +55,7 @@
     },
     "packages/cosmos-signers": {
       "name": "@apophis-sdk/cosmos-signers",
-      "version": "0.3.0",
+      "version": "0.3.0-rc.6",
       "dependencies": {
         "@apophis-sdk/keplr-signer": "0.3.0",
         "@apophis-sdk/walletconnect-signer": "0.3.0",
@@ -64,7 +64,7 @@
     },
     "packages/cosmwasm": {
       "name": "@apophis-sdk/cosmwasm",
-      "version": "0.3.0",
+      "version": "0.3.0-rc.6",
       "dependencies": {
         "classnames": "^2.5.1",
         "tslib": "^2.6.3",
@@ -82,7 +82,7 @@
     },
     "packages/keplr-signer": {
       "name": "@apophis-sdk/keplr-signer",
-      "version": "0.3.0",
+      "version": "0.3.0-rc.6",
       "dependencies": {
         "@keplr-wallet/types": "^0.12.121",
         "long": "^5.2.3",
@@ -97,26 +97,9 @@
         "typescript": "^5.0.0",
       },
     },
-    "packages/preact": {
-      "name": "@apophis-sdk/preact",
-      "version": "0.3.0",
-      "dependencies": {
-        "classnames": "^2.5.1",
-        "tslib": "^2.6.3",
-      },
-      "devDependencies": {
-        "bun-types": "^1.1.24",
-      },
-      "peerDependencies": {
-        "@apophis-sdk/core": "0.2.0-fix.1",
-        "@preact/signals": "^1.3.0",
-        "preact": "^10.23.2",
-        "typescript": "^5.0.0",
-      },
-    },
     "packages/walletconnect-signer": {
       "name": "@apophis-sdk/walletconnect-signer",
-      "version": "0.3.0",
+      "version": "0.3.0-rc.6",
       "dependencies": {
         "@walletconnect/sign-client": "^2.16.2",
         "qrcode": "^1.5.4",
@@ -143,8 +126,6 @@
     "@apophis-sdk/cosmwasm": ["@apophis-sdk/cosmwasm@workspace:packages/cosmwasm"],
 
     "@apophis-sdk/keplr-signer": ["@apophis-sdk/keplr-signer@workspace:packages/keplr-signer"],
-
-    "@apophis-sdk/preact": ["@apophis-sdk/preact@workspace:packages/preact"],
 
     "@apophis-sdk/walletconnect-signer": ["@apophis-sdk/walletconnect-signer@workspace:packages/walletconnect-signer"],
 

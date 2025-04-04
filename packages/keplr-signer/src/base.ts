@@ -1,8 +1,7 @@
-import { endpoints, ExternalAccount, type CosmosNetworkConfig } from '@apophis-sdk/core';
+import { endpoints, ExternalAccount, Signer, type CosmosNetworkConfig } from '@apophis-sdk/core';
 import { pubkey, PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
 import { fromBase64, toHex } from '@apophis-sdk/core/utils.js';
 import { Cosmos, CosmosTx, CosmosTxDirect, TxMarshaller } from '@apophis-sdk/cosmos';
-import { CosmosSigner } from '@apophis-sdk/cosmos/signer.js';
 import { type Window as KeplrWindow } from '@keplr-wallet/types';
 import { AuthInfo, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import Long from 'long';
@@ -17,7 +16,7 @@ declare global {
 var signers = new Set<WeakRef<KeplrSigner>>();
 const FAKERS = ['leap'];
 
-export class KeplrSigner extends CosmosSigner {
+export class KeplrSigner extends Signer<CosmosTx> {
   #networks: CosmosNetworkConfig[] = [];
   get type() { return 'Keplr' }
   get displayName() { return 'Keplr' }
