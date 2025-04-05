@@ -64,9 +64,9 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
       client.on('session_update', (args) => {
         if (args.topic !== this.#session?.topic) return;
         this.#session.namespaces = args.params.namespaces;
-      });
-      client.on('session_request', (args) => {
-        console.log('WC session_request', args);
+        for (const network of this.#networks) {
+          this.refreshAccounts(network);
+        }
       });
       // TODO: what happens when the session is deleted or expires?
       return client;
@@ -85,7 +85,7 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
 
     const init = async () => {
       for (const network of networks) {
-        const pks = await this.getPublicKeys([network as CosmosNetworkConfig]);
+        const pks = await this.getPublicKeys(network as CosmosNetworkConfig);
         await this.initAccounts(network, pks);
       }
       await this.updateSignData(networks as CosmosNetworkConfig[]);
@@ -105,7 +105,7 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
         },
       };
 
-      const [session] = client.find({ requiredNamespaces });
+      const [session] = client.find({ requiredNamespaces }).filter(session => session.expiry > Date.now() / 1000);
       if (session) {
         this.#state.value = {
           state: 'connected',
@@ -161,6 +161,7 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
         if (!state) return;
         switch (state.state) {
           case 'error':
+            if (state.error instanceof Error && state.error.message === 'Proposal expired') break;
             setTimeout(() => unsub(), 1); // hack for when state is already set during initial run
             reject(state.error);
             break;
@@ -233,10 +234,16 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
     return await Cosmos.broadcast(tx.network!, tx);
   }
 
-  protected async getAccounts(network: NetworkConfig): Promise<{ address: string; publicKey: PublicKey; }[]> {
+  /** Refresh accounts for a given network. */
+  async refreshAccounts(network: NetworkConfig): Promise<PeerAccount[]> {
     if (!this.#session) throw new WalletConnectSignerNotConnectedError();
     const client = await this.#signClient;
     const { topic } = this.#session;
+    const { storage } = client.core;
+
+    const key = `apophis:pubkeys:${topic}:${network.chainId}`;
+    await waitForPeer(client, this.#session);
+
     const accounts = await client.request<PeerAccount[]>({
       topic,
       chainId: 'cosmos:' + network.chainId,
@@ -245,6 +252,25 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
         params: [],
       },
     });
+    await storage.setItem(key, accounts);
+
+    return accounts;
+  }
+
+  protected async getAccounts(network: NetworkConfig): Promise<{ address: string; publicKey: PublicKey; }[]> {
+    if (!this.#session) throw new WalletConnectSignerNotConnectedError();
+    const client = await this.#signClient;
+
+    const { topic } = this.#session;
+    const { storage } = client.core;
+
+    const key = `apophis:pubkeys:${topic}:${network.chainId}`;
+    let accounts: PeerAccount[] | undefined = await storage.getItem(key);
+
+    if (!accounts?.length) {
+      accounts = await this.refreshAccounts(network);
+    }
+
     return accounts.map(acc => {
       if (!['secp256k1', 'ed25519'].includes(acc.algo))
         throw new WalletConnectSignerError(`Unsupported algo: ${acc.algo}`);
@@ -253,8 +279,8 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
     });
   }
 
-  protected async getPublicKeys(networks: CosmosNetworkConfig[]) {
-    const accs = await Promise.all(networks.map(network => this.getAccounts(network))).then(accs => accs.flat());
+  protected async getPublicKeys(network: CosmosNetworkConfig) {
+    const accs = await this.getAccounts(network);
     const result: Record<string, PublicKey> = {};
     for (const { publicKey } of accs) {
       const bs = typeof publicKey.bytes === 'string' ? publicKey.bytes : toBase64(publicKey.bytes);
@@ -278,6 +304,14 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
   #encode = (data: Uint8Array) => encode(data, this.config.encoding);
   #decode = (data: string) => decode(data, this.config.encoding);
 
+  /** Get a Heartbeat, a liveness monitor for the peer. Exposes a signal you can subscribe to.
+   * The heartbeat must be destroyed when you're done with it.
+   */
+  heartbeat() {
+    if (!this.#session) throw new WalletConnectSignerNotConnectedError();
+    return new Heartbeat(this.#signClient, this.#session.topic).start();
+  }
+
   get state() {
     return this.#state as ReadonlySignal<ConnectState | undefined>;
   }
@@ -286,6 +320,45 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
     for (const signer of getSigners()) {
       await signer.updateSignData();
     }
+  }
+}
+
+class Heartbeat {
+  #interval: ReturnType<typeof setInterval> | undefined;
+  #status = signal<boolean>(false);
+
+  constructor(public readonly client: Promise<SignClient>, public readonly topic: string) {}
+
+  start() {
+    this.#interval = setInterval(() => {
+      let active = true;
+
+      this.client
+        .then(client => client.ping({ topic: this.topic }))
+        .then(() => {
+          if (!active) return;
+          this.#status.value = true;
+          active = false;
+          clearTimeout(timeout);
+        })
+        .catch(() => {});
+
+      const timeout = setTimeout(() => {
+        if (!active) return;
+        active = false;
+        this.#status.value = false;
+      }, 5000);
+    }, 5000);
+    return this;
+  }
+
+  destroy() {
+    clearInterval(this.#interval);
+    this.#interval = undefined;
+  }
+
+  get status() {
+    return this.#status;
   }
 }
 
@@ -315,4 +388,20 @@ function getSigners() {
     }
   }
   return result;
+}
+
+function waitForPeer(client: SignClient, session: SessionTypes.Struct, retries = Infinity) {
+  return new Promise<void>((resolve, reject) => {
+    let attempt = 0;
+    const ping = () => client.ping({ topic: session.topic })
+      .then(() => resolve())
+      .catch(() => {
+        if (attempt++ < retries) {
+          setTimeout(ping, 1000);
+        } else {
+          reject(new WalletConnectSignerError('Failed to connect to peer'));
+        }
+      });
+    ping();
+  });
 }

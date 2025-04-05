@@ -1,3 +1,4 @@
+import { type IKeyValueStorage } from '@walletconnect/keyvaluestorage';
 import { type SignClientTypes } from '@walletconnect/types';
 
 export interface WalletConnectSignerConfig {
@@ -12,4 +13,11 @@ export interface WalletConnectSignerConfig {
   metadata?: SignClientTypes.Metadata;
   /** Encoding to use for signing. Defaults to 'base64'. */
   encoding?: 'base64' | 'hex';
+  /** Optional storage passed to the WalletConnect SignClient. A default implementation exists
+   * within WalletConnect, but may change in the future. Currently, the default implementation is
+   * based on IndexedDB.
+   *
+   * Apophis uses this storage internally as well to store account information.
+   */
+  storage?: IKeyValueStorage;
 }
