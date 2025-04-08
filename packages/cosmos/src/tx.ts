@@ -1,13 +1,14 @@
-import { Any, config, type CosmosNetworkConfig, ExternalAccount, type Signer, TxBase, TxStatus } from '@apophis-sdk/core';
+import { Any, config, type CosmosNetworkConfig, ExternalAccount, NetworkConfig, signals, type Signer, TxBase, TxStatus } from '@apophis-sdk/core';
+import { mw } from '@apophis-sdk/core/middleware.js';
 import type { Gas } from '@apophis-sdk/core/types.sdk.js';
+import { fromBase64, toHex } from '@apophis-sdk/core/utils.js';
 import { extendDefaultMarshaller, IgnoreMarshalUnit } from '@kiruse/marshal';
 import { Decimal } from '@kiruse/decimal';
 import { sha256 } from '@noble/hashes/sha256';
-import { AuthInfo, Tx as SdkTxDirect, SignDoc, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
+import { computed, effect, ReadonlySignal, signal } from '@preact/signals';
 import { SignMode } from 'cosmjs-types/cosmos/tx/signing/v1beta1/signing';
+import { AuthInfo, Tx as SdkTxDirect, SignDoc, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { Cosmos } from './api';
-import { fromBase64, toHex } from '@apophis-sdk/core/utils.js';
-import { mw } from '@apophis-sdk/core/middleware.js';
 import { Amino } from './encoding/amino';
 
 /** The format of a Cosmos transaction. Of the two formats, `protobuf` is the default, and `amino`
@@ -28,6 +29,32 @@ export interface AminoTxOptions {
 }
 
 export type CosmosTx = CosmosTxDirect | CosmosTxAmino;
+
+export type EstimateResult = EstimateResult.Pending | EstimateResult.Success | EstimateResult.Error;
+
+export namespace EstimateResult {
+  export interface Pending {
+    status: 'pending';
+    gas?: undefined;
+    error?: undefined;
+  }
+
+  export interface Success {
+    status: 'success';
+    gas: Gas;
+    error?: undefined;
+    timestamp: Date;
+    refreshInterval: number;
+  }
+
+  export interface Error {
+    status: 'error';
+    gas?: undefined;
+    error: any;
+    timestamp: Date;
+    refreshInterval: number;
+  }
+}
 
 export const TxMarshaller = extendDefaultMarshaller([
   IgnoreMarshalUnit(Uint8Array),
@@ -298,5 +325,138 @@ export class CosmosTxAmino extends CosmosTxBase<SdkTxDirect> {
 
   bytes(): Uint8Array {
     return SdkTxDirect.encode(this.fullSdkTx()).finish();
+  }
+}
+
+export interface CosmosTxSignalOptions {
+  encoding?: ReadonlySignal<CosmosTxEncoding>,
+  signer?: ReadonlySignal<Signer<CosmosTx>>;
+  network?: ReadonlySignal<CosmosNetworkConfig>;
+  /** Interval at which to refresh the estimate. Defaults to 30 seconds. If set to 0, does not refresh. */
+  refreshInterval?: number;
+}
+
+export class CosmosTxSignal {
+  #estimate = signal<EstimateResult>({ status: 'pending' });
+  #run = 0;
+  #refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  #refreshInterval: number;
+  readonly signer: ReadonlySignal<Signer<CosmosTx> | undefined>;
+  readonly network: ReadonlySignal<NetworkConfig | undefined>;
+  readonly tx: ReadonlySignal<CosmosTx>;
+
+  constructor(
+    public readonly messages: ReadonlySignal<object[]>,
+    options: CosmosTxSignalOptions = {},
+  ) {
+    this.signer = options.signer ?? signals.signer as ReadonlySignal<Signer<CosmosTx>>;
+    this.network = options.network ?? signals.network;
+    this.#refreshInterval = options.refreshInterval ?? 30000;
+
+    this.tx = computed(() => {
+      const messages = this.messages.value;
+      const encoding = options.encoding?.value ?? 'protobuf';
+      if (encoding === 'protobuf') {
+        return new CosmosTxDirect(messages);
+      } else {
+        return new CosmosTxAmino(messages);
+      }
+    });
+  }
+
+  /** Start side effects. Returns a corresponding cleanup function. */
+  start() {
+    const unsub = effect(this.refresh.bind(this));
+    return () => {
+      unsub();
+      clearTimeout(this.#refreshTimer);
+      this.#refreshTimer = undefined;
+    }
+  }
+
+  /** Refresh the estimate. Calling this also resets the refresh interval. */
+  refresh() {
+    const runId = ++this.#run;
+    this.#estimate.value = { status: 'pending' };
+    clearTimeout(this.#refreshTimer);
+    this.#refreshTimer = undefined;
+
+    const network = this.network.value as CosmosNetworkConfig;
+    const signer = this.signer.value;
+    const tx = this.tx.value;
+
+    if (network?.ecosystem !== 'cosmos' || !signer) {
+      this.#estimate.value = {
+        status: 'error',
+        error: new Error('Missing or invalid network and/or signer'),
+        timestamp: new Date(),
+        refreshInterval: this.#refreshInterval,
+      };
+      this.#scheduleRefresh();
+      return;
+    }
+
+    if (tx.messages.length === 0) {
+      this.#estimate.value = {
+        status: 'error',
+        error: new Error('Transactions require at least one message'),
+        timestamp: new Date(),
+        refreshInterval: this.#refreshInterval,
+      };
+      this.#scheduleRefresh();
+      return;
+    }
+
+    this.#estimate.value = { status: 'pending' };
+
+    tx.estimateGas(network, signer)
+      .then(gas => {
+        if (runId !== this.#run) return;
+        tx.setGas(gas);
+        this.#estimate.value = {
+          status: 'success',
+          gas,
+          timestamp: new Date(),
+          refreshInterval: this.#refreshInterval,
+        };
+        this.#scheduleRefresh();
+      })
+      .catch(error => {
+        if (runId !== this.#run) return;
+        this.#estimate.value = {
+          status: 'error',
+          error,
+          timestamp: new Date(),
+          refreshInterval: this.#refreshInterval,
+        };
+        // do not schedule refresh
+        // if the messages change, the estimate will automatically refresh
+        // otherwise, the next estimate will most likely also just fail
+      });
+  }
+
+  async sign() {
+    const signer = this.signer.peek(), network = this.network.peek();
+    if (!signer) throw new Error('Missing signer');
+    if (!network) throw new Error('Missing network');
+    await signer.sign(network, this.tx.peek());
+  }
+
+  async broadcast() {
+    return await this.tx.peek().broadcast();
+  }
+
+  async signAndBroadcast() {
+    await this.sign();
+    return await this.broadcast();
+  }
+
+  #scheduleRefresh() {
+    if (this.#refreshInterval === 0) return;
+    this.#refreshTimer = setTimeout(this.refresh.bind(this), this.#refreshInterval);
+  }
+
+  get estimate(): ReadonlySignal<EstimateResult> {
+    return this.#estimate;
   }
 }

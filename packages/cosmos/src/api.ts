@@ -27,7 +27,7 @@ import { recase } from '@kristiandupont/recase';
 import { Tx as SdkTxDirect } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { BlockID } from 'cosmjs-types/tendermint/types/types.js';
 import { TendermintQuery } from './tmquery.js';
-import { type CosmosTx, CosmosTxAmino, CosmosTxBase, CosmosTxDirect, CosmosTxEncoding } from './tx.js';
+import { type CosmosTx, CosmosTxAmino, CosmosTxBase, CosmosTxDirect, CosmosTxEncoding, CosmosTxSignal, CosmosTxSignalOptions } from './tx.js';
 import { computed, effect, ReadonlySignal, Signal, signal } from '@preact/signals';
 
 type Unsub = () => void;
@@ -39,40 +39,6 @@ const { marshal, unmarshal } = extendDefaultMarshaller([
   ),
   BytesMarshalUnit,
 ]);
-
-export type EstimateResult = EstimateResult.Pending | EstimateResult.Success | EstimateResult.Error;
-
-export namespace EstimateResult {
-  export interface Pending {
-    status: 'pending';
-    gas?: undefined;
-    error?: undefined;
-  }
-
-  export interface Success {
-    status: 'success';
-    gas: Gas;
-    error?: undefined;
-    timestamp: Date;
-    refreshInterval: number;
-  }
-
-  export interface Error {
-    status: 'error';
-    gas?: undefined;
-    error: any;
-    timestamp: Date;
-    refreshInterval: number;
-  }
-}
-
-export interface SignalTxOptions {
-  gas?: Gas,
-  encoding?: CosmosTxEncoding,
-  signer?: Signer<CosmosTx>| ReadonlySignal<Signer<CosmosTx>>;
-  /** Interval at which to refresh the estimate. Defaults to 30 seconds. If set to 0, does not refresh. */
-  refreshInterval?: number;
-}
 
 /** This is the basic Cosmos REST API that is commonly used when interfacing with the blockchain.
  * Note that it does not necessarily reflect the real REST API of the target chain as it is highly
@@ -142,9 +108,17 @@ export const Cosmos = new class {
    *
    * ```tsx
    * import { Cosmos } from '@apophis-sdk/cosmos';
+   * import { useEffect } from 'react';
    *
    * function YourComponent() {
    *   const tx = Cosmos.signalTx(network, () => yourMessages);
+   *
+   *   // CosmosTxSignal uses an effect and a timer internally to automatically refresh the estimate
+   *   // so we need to be sure to destroy it to avoid memory leaks
+   *   useEffect(() => {
+   *     return () => tx.destroy();
+   *   }, []);
+   *
    *   return (
    *     <div>
    *       <button onClick={() => tx.signAndBroadcast()}>Confirm</button>
@@ -157,105 +131,8 @@ export const Cosmos = new class {
    * *Note:* The `cosmos-estimate` component is a custom element from the `@kiruse/cosmos-components`
    * package.
    */
-  signalTx(
-    network: CosmosNetworkConfig | ReadonlySignal<CosmosNetworkConfig>,
-    factory: () => object[],
-    { encoding, refreshInterval = 30000, ...opts }: SignalTxOptions = {}
-  ) {
-    if (!('value' in network)) network = signal(network);
-    const signer = opts.signer
-      ? 'value' in opts.signer
-        ? opts.signer
-        : signal(opts.signer)
-      : signals.signer;
-
-    const tx = computed(() => this.tx(factory(), opts));
-    const estimate = signal<EstimateResult>({ status: 'pending' });
-    const run = signal(0);
-
-    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
-
-    const refresh = () => {
-      clearTimeout(refreshTimer);
-      refreshTimer = undefined;
-
-      if (!signer.value) {
-        estimate.value = {
-          status: 'error',
-          error: new Error('Missing signer.'),
-          timestamp: new Date(),
-          refreshInterval,
-        };
-        refreshTimer = setTimeout(refresh, refreshInterval);
-        return;
-      }
-
-      if (!tx.value.messages.length) {
-        estimate.value = {
-          status: 'error',
-          error: new Error('Transactions require at least one message.'),
-          timestamp: new Date(),
-          refreshInterval,
-        };
-        refreshTimer = setTimeout(refresh, refreshInterval);
-        return;
-      }
-
-      // DO NOT use run.value++. We DON'T want a dependency on the run signal.
-      const runId = run.peek() + 1;
-      run.value = runId;
-
-      estimate.value = { status: 'pending' };
-
-      tx.value.estimateGas(network.value, signer.value)
-        .then(gas => {
-          if (runId !== run.peek()) return;
-          estimate.value = {
-            status: 'success',
-            gas,
-            timestamp: new Date(),
-            refreshInterval,
-          };
-          refreshTimer = setTimeout(refresh, refreshInterval);
-        })
-        .catch(error => {
-          if (runId !== run.peek()) return;
-          estimate.value = {
-            status: 'error',
-            error,
-            timestamp: new Date(),
-            refreshInterval,
-          };
-          refreshTimer = setTimeout(refresh, refreshInterval);
-        });
-    };
-
-    effect(refresh);
-
-    return {
-      /** The underlying non-signal transaction object. */
-      tx,
-      /** Tx execution estimate signal. Contains various relevant data points. */
-      estimate,
-      /** Force a refresh of the estimate. The refresh interval will also be adjusted accordingly. */
-      refreshEstimate: refresh,
-      /** Signer signal used to sign the transaction. */
-      get signer() { return signer },
-      /** Sign the transaction. */
-      async sign() {
-        const _signer = signer.peek();
-        if (!_signer) throw new Error('Missing signer.');
-        await _signer.sign(network.peek(), tx.peek());
-        return this;
-      },
-      /** Broadcast the transaction. */
-      broadcast: () => tx.peek().broadcast(),
-      /** Sign & broadcast the transaction. */
-      async signAndBroadcast() {
-        await this.sign();
-        return this.broadcast();
-      },
-    };
+  signalTx(messages: ReadonlySignal<object[]>, opts: CosmosTxSignalOptions = {}) {
+    return new CosmosTxSignal(messages, opts);
   }
 
   /** Broadcast a transaction to the network. If `async` is true, will not wait for inclusion in a
