@@ -53,6 +53,67 @@ export interface CosmosNetworkConfig {
   };
 }
 
+/** Asset configuration from the Chain Registry. */
+export interface CosmosRegistryAsset {
+  base: string;
+  name: string;
+  /** Identifier of a denom unit to use for display purposes. */
+  display?: string;
+  /** Symbol to use for display purposes. */
+  symbol?: string;
+  /** Number of decimals to use for display purposes. */
+  exponent?: number;
+  /** Type of asset. Typically something like `sdk.coin`. */
+  type_asset?: string;
+  description?: string;
+  extended_description?: string;
+  denom_units: {
+    denom: string;
+    exponent: number;
+    aliases?: string[];
+  }[];
+  traces?: (IBCTrace)[];
+  images?: CosmosRegistryAssetImage[];
+  coingecko_id?: string;
+}
+
+/** Image configuration for a fungible asset from the Chain Registry. */
+export interface CosmosRegistryAssetImage {
+  /** If present, this image should be kept in sync with an asset from another chain. */
+  image_sync?: {
+    chain_name: string;
+    base_denom: string;
+  };
+  png?: string;
+  svg?: string;
+  theme?: CosmosRegistryAssetImageTheme;
+  logo_URIs?: CosmosRegistryAssetLogoURIs;
+}
+
+/** Theme configuration for a fungible asset from the Chain Registry. */
+export interface CosmosRegistryAssetImageTheme {
+  primary_color_hex: string;
+}
+
+/** Logo URIs for a fungible asset from the Chain Registry. */
+export interface CosmosRegistryAssetLogoURIs {
+  png?: string;
+  svg?: string;
+}
+
+interface IBCTrace {
+  type: 'ibc';
+  counterparty: {
+    chain_name: string;
+    base_denom: string;
+    channel_id: string;
+  };
+  chain: {
+    channel_id: string;
+    path: string;
+  };
+}
+
 /** Base configuration for fungible assets. Primarily used for gas computations or display purposes. */
 export interface FungibleAsset {
   denom: string;
@@ -64,6 +125,24 @@ export interface FungibleAsset {
   cmcid?: string;
   /** The number of decimals to use when formatting this asset. Defaults to 6. It is strongly advised to populate this value. */
   decimals?: number;
+  /** Optional display configuration for UIs. */
+  display?: FungibleAssetDisplay;
+}
+
+export interface FungibleAssetDisplay {
+  /** Identifier of a deviating denom unit to use for display purposes.
+   */
+  denom: string;
+  /** Deviating symbol to show in the UI. */
+  symbol?: string;
+  /** Deviating number of decimals for display purposes. E.g. in Cosmos, the canonical decimals are
+   * 0, but typically displayed as 6.
+   */
+  decimals?: number;
+  /** Alternative, prettier names for the asset. E.g. often an imported asset in Cosmos is a very
+   * long hash-based name prefixed with `ibc/`, but often uses a shorter name in the UI like `uusdc`.
+   */
+  aliases?: string[];
 }
 
 /** Gas configuration specific to Cosmos chains. However, even within Cosmos, chains may deviate

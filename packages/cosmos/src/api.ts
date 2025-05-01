@@ -1,4 +1,4 @@
-import { Signer, type FungibleAsset } from '@apophis-sdk/core';
+import { type FungibleAsset, type CosmosRegistryAsset } from '@apophis-sdk/core';
 import { endpoints } from '@apophis-sdk/core/endpoints.js';
 import { BytesMarshalUnit } from '@apophis-sdk/core/marshal.js';
 import type { CosmosNetworkConfig, NetworkConfig } from '@apophis-sdk/core/networks.js';
@@ -24,11 +24,11 @@ import { extendDefaultMarshaller, RecaseMarshalUnit } from '@kiruse/marshal';
 import { restful } from '@kiruse/restful';
 import { Event } from '@kiruse/typed-events';
 import { recase } from '@kristiandupont/recase';
+import { type ReadonlySignal } from '@preact/signals';
 import { Tx as SdkTxDirect } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import { BlockID } from 'cosmjs-types/tendermint/types/types.js';
 import { TendermintQuery } from './tmquery.js';
 import { type CosmosTx, CosmosTxAmino, CosmosTxBase, CosmosTxDirect, CosmosTxEncoding, CosmosTxSignal, CosmosTxSignalOptions } from './tx.js';
-import { computed, effect, ReadonlySignal, Signal, signal } from '@preact/signals';
 
 type Unsub = () => void;
 
@@ -241,11 +241,23 @@ export const Cosmos = new class {
       fetch(`${baseurl}/assetlist.json`).then(res => res.json()),
     ]);
 
-    const assets: FungibleAsset[] = assetlist.assets.map((asset: any): FungibleAsset => ({
-      denom: asset.base,
-      name: asset.name,
-      decimals: asset.denom_units.find((unit: any) => unit.denom === asset.display)?.decimals ?? 0,
-    }));
+    const assets: FungibleAsset[] = assetlist.assets.map((asset: CosmosRegistryAsset): FungibleAsset => {
+      const decimals = asset.denom_units.find(unit => unit.denom === asset.base)?.exponent ?? 6;
+
+      const displayVariant = asset.display ? asset.denom_units.find(unit => unit.denom === asset.display) : undefined;
+
+      return {
+        denom: asset.base,
+        name: asset.name,
+        decimals,
+        display: {
+          denom: displayVariant?.denom ?? asset.base,
+          aliases: displayVariant?.aliases,
+          decimals: displayVariant?.exponent,
+          symbol: asset.symbol,
+        },
+      };
+    });
 
     const [feeData] = chainData.fees?.fee_tokens ?? [];
     if (!feeData) throw new Error(`No fee info found in Cosmos Chain Registry for ${name}`);
