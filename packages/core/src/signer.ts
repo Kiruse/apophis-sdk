@@ -55,14 +55,11 @@ export abstract class Signer<Tx extends TxBase = TxBase> {
   /** Broadcast a signed transaction. Returns the tx hash if successful. */
   abstract broadcast(tx: Tx): Promise<string>;
 
-  /** Initialize the `ExternalAccount`s in the `accounts` signal for the given public keys.
-   * Both updates the `accounts` signal and returns the initialized accounts.
+  /** Initialize the `ExternalAccount`s in the `accounts` signal for the given public keys. It
+   * populates the given `accounts` object with the new accounts. `accounts` keys can be computed
+   * from the public key using `Signer.getPubkeyIndex`.
    */
-  protected initAccounts(network: NetworkConfig, pubkeys: PublicKey[]) {
-    const accounts: Record<string, ExternalAccount> = Object.fromEntries(
-      this.accounts.peek().map(a => [Signer.getPubkeyIndex(a.publicKey), a]),
-    );
-
+  protected initAccounts(accounts: Record<string, ExternalAccount>, network: NetworkConfig, pubkeys: PublicKey[]) {
     for (const pubkey of pubkeys) {
       const idx = Signer.getPubkeyIndex(pubkey);
       if (!accounts[idx]) {
@@ -70,8 +67,6 @@ export abstract class Signer<Tx extends TxBase = TxBase> {
       }
       accounts[idx].bind([network]);
     }
-
-    return this.accounts.value = Object.values(accounts);
   }
 
   /** Activate the given account. The account must be one of the accounts in the `accounts` array signal. */
@@ -100,7 +95,9 @@ export abstract class Signer<Tx extends TxBase = TxBase> {
     return this.getAccount(network).getSignData(network).peek();
   }
 
-  /** Get the public key of the currently active account on the given network. */
+  /** Get the public key of the currently active account on the given network. Note that this is a
+   * convenient helper unsuited for use in signals. Use the `accounts` signal property instead.
+   */
   pubkey(network: NetworkConfig): PublicKey {
     return this.getAccount(network).getSignData(network).peek().publicKey;
   }
@@ -110,7 +107,10 @@ export abstract class Signer<Tx extends TxBase = TxBase> {
     return this.accounts.peek().map(a => a.getSignData(network).peek().address);
   }
 
-  /** Get the first address of the signer on the given network. Most commonly, signers only have one account. */
+  /** Get the first address of the signer on the given network. Most commonly, signers only have one
+   * account. *Note* that this is a convenient helper unsuited for use in signals. Use the `accounts`
+   * signal property instead.
+   */
   address(network: NetworkConfig): string {
     return this.getAccount(network).getSignData(network).peek().address;
   }
@@ -134,6 +134,10 @@ export abstract class Signer<Tx extends TxBase = TxBase> {
 
 /** ExternalAccounts are abstractions for accounts managed by private keys, and represented with public keys
  * and corresponding addresses.
+ *
+ * Every account must be bound to a specific network. This is because every account can be used with every
+ * network that uses the same private key length, so the system has no way of knowing which networks an
+ * account is actually active on.
  *
  * The `update` method can be used to update the sign data of the account on a given network. It is recommended
  * to call this method before creating a transaction. If the sign data is missing, signer integrations should

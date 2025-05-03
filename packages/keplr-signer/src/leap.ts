@@ -36,5 +36,5 @@ export const Leap = new LeapSigner();
 
 // Update all signers when the keystore changes
 if (typeof window !== 'undefined') {
-  window.addEventListener('leap_keystorechange', KeplrSigner.updateAll);
+  window.addEventListener('leap_keystorechange', KeplrSigner.resetAll);
 }

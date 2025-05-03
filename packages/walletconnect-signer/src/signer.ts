@@ -83,15 +83,6 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
   connect(networks: NetworkConfig[]) {
     this.#networks = networks = networks.filter(network => network.ecosystem === 'cosmos') as CosmosNetworkConfig[];
 
-    const init = async () => {
-      for (const network of networks) {
-        const pks = await this.getPublicKeys(network as CosmosNetworkConfig);
-        await this.initAccounts(network, pks);
-      }
-      await this.updateSignData(networks as CosmosNetworkConfig[]);
-      return this.accounts.peek();
-    };
-
     let timeout: ReturnType<typeof setTimeout> | undefined;
 
     const request = async () => {
@@ -168,7 +159,7 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
           case 'connected':
             setTimeout(() => unsub(), 1);
             this.#session = state.session;
-            init().then(resolve).catch(reject);
+            this._reinitAccounts(networks as CosmosNetworkConfig[]).then(resolve).catch(reject);
             break;
         }
       })
@@ -193,7 +184,7 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
 
     const signData = this.getSignData(network);
     if (!ExternalAccount.isComplete(signData))
-      await this.updateSignData();
+      await this.updateSignData([this.getAccount(network)], [network]);
     if (!ExternalAccount.isComplete(signData)) throw new WalletConnectSignerError('Failed to load sign data');
 
     const sdkTx = tx.sdkTx(network, this);
@@ -252,6 +243,8 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
         params: [],
       },
     });
+
+    // note: accounts are stored
     await storage.setItem(key, accounts);
 
     return accounts;
@@ -290,13 +283,15 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
     return Object.values(result);
   }
 
-  async updateSignData(networks = this.#networks) {
-    const accs = this.accounts.value;
-    await Promise.all(accs.map(async acc => {
+  async updateSignData(accounts: ExternalAccount[], networks = this.#networks) {
+    await Promise.all(accounts.map(async acc => {
       await Promise.all(networks.map(async network => {
+        if (!acc.isBound(network)) return;
         const data = acc.getSignData(network);
-        const info = await Cosmos.getAccountInfo(network, data.peek().address);
-        acc.setSignData(network, info.accountNumber, info.sequence);
+        const info = await Cosmos.getAccountInfo(network, data.peek().address).catch(() => null);
+        if (info) {
+          acc.setSignData(network, info.accountNumber, info.sequence);
+        }
       }));
     }));
   }
@@ -316,9 +311,28 @@ export class WalletConnectCosmosSigner extends Signer<CosmosTx> implements WCSig
     return this.#state as ReadonlySignal<ConnectState | undefined>;
   }
 
+  protected async _reinitAccounts(networks = this.#networks) {
+    const accmap: Record<string, ExternalAccount> = {};
+    for (const network of networks) {
+      const pks = await this.getPublicKeys(network as CosmosNetworkConfig);
+      this.initAccounts(accmap, network, pks);
+    }
+
+    const accounts = Object.values(accmap);
+    // updateSignData only updates accounts bound to the given networks
+    await this.updateSignData(accounts, networks as CosmosNetworkConfig[]);
+    return this.accounts.value = accounts;
+  }
+
+  static async resetAll() {
+    for (const signer of getSigners()) {
+      await signer._reinitAccounts();
+    }
+  }
+
   static async updateAll() {
     for (const signer of getSigners()) {
-      await signer.updateSignData();
+      await signer.updateSignData(signer.accounts.peek());
     }
   }
 }

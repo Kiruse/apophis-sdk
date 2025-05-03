@@ -1,6 +1,6 @@
 {
   "name": "@apophis-sdk/cosmos-signers",
-  "version": "0.3.0-rc.11",
+  "version": "0.3.0",
   "author": "Kiruse",
   "repository": "https://github.com/kiruse/apophis-sdk.git",
   "type": "module",
@@ -13,8 +13,8 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@apophis-sdk/keplr-signer": "0.3.0-rc.11",
-    "@apophis-sdk/walletconnect-signer": "0.3.0-rc.11",
+    "@apophis-sdk/keplr-signer": "0.3.0",
+    "@apophis-sdk/walletconnect-signer": "0.3.0",
     "tslib": "^2.6.3"
   }
 }

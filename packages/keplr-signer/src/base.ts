@@ -45,14 +45,7 @@ export class KeplrSigner extends Signer<CosmosTx> {
     this.#networks = networks;
     await Promise.all(networks.map((network) => backend.experimentalSuggestChain(toChainSuggestion(network))));
     await backend.enable(networks.map((network) => network.chainId));
-
-    for (const network of networks) {
-      const pks = await this.getPublicKeys([network]);
-      await this.initAccounts(network, pks);
-    }
-
-    await this.updateSignData(networks);
-    return this.accounts.peek();
+    return this._reinitAccounts(networks);
   }
 
   async broadcast(tx: CosmosTx): Promise<string> {
@@ -74,14 +67,17 @@ export class KeplrSigner extends Signer<CosmosTx> {
   /** Load `SignData` for the given networks. This is intended for internal use only and will be
    * automatically called by the integration.
    */
-  async updateSignData(networks = this.#networks): Promise<ExternalAccount[]> {
-    const pubkeys = await this.getPublicKeys(networks);
-
-    return await Promise.all(pubkeys.map(async pubkey => {
-      const account = new ExternalAccount(pubkey);
-      await account.update(networks);
-      return account;
-    })).then(accs => accs.flat());
+  async updateSignData(accounts: ExternalAccount[], networks = this.#networks): Promise<void> {
+    await Promise.all(accounts.map(async acc => {
+      await Promise.all(networks.map(async network => {
+        if (!acc.isBound(network)) return;
+        const data = acc.getSignData(network);
+        const info = await Cosmos.getAccountInfo(network, data.peek().address).catch(() => null);
+        if (info) {
+          acc.setSignData(network, info.accountNumber, info.sequence);
+        }
+      }));
+    }));
   }
 
   /** Get the accounts from Keplr. Generally not needed, as you will use the `accounts` signal instead. */
@@ -119,7 +115,11 @@ export class KeplrSigner extends Signer<CosmosTx> {
 
   async sign(network: CosmosNetworkConfig, tx: CosmosTx): Promise<CosmosTx> {
     const signData = this.getSignData(network);
+
+    if (!ExternalAccount.isComplete(signData))
+      await this.updateSignData([this.getAccount(network)], [network]);
     if (!ExternalAccount.isComplete(signData)) throw new Error('Sign data incomplete');
+
     const { address, publicKey } = signData;
     if (!this.backend) throw new Error('Keplr not available');
     if (!address || !publicKey || !network) throw new Error('Account not bound to a network');
@@ -161,10 +161,27 @@ export class KeplrSigner extends Signer<CosmosTx> {
     return window.keplr;
   }
 
+  /** Reinitialize the accounts for the given networks. Primarily used internally when the keychain changes. */
+  protected async _reinitAccounts(networks = this.#networks) {
+    const accmap: Record<string, ExternalAccount> = {};
+    for (const network of networks) {
+      const pks = await this.getPublicKeys([network]);
+      this.initAccounts(accmap, network, pks);
+    }
+    await this.updateSignData(Object.values(accmap), networks);
+    return this.accounts.value = Object.values(accmap);
+  }
+
   /** Update all created & non-gcc'ed signers. Run automatically every 30s and when the keystore changes. */
+  static async resetAll() {
+    for (const signer of getSigners()) {
+      await signer._reinitAccounts();
+    }
+  }
+
   static async updateAll() {
     for (const signer of getSigners()) {
-      await signer.updateSignData();
+      await signer.updateSignData(signer.accounts.peek());
     }
   }
 }
@@ -219,7 +236,7 @@ function toChainSuggestion(network: CosmosNetworkConfig): Parameters<Required<Ke
 
 // Update all signers when the keystore changes
 if (typeof window !== 'undefined') {
-  window.addEventListener('keplr_keystorechange', KeplrSigner.updateAll);
+  window.addEventListener('keplr_keystorechange', KeplrSigner.resetAll);
 }
 
 // Update all signers periodically
