@@ -1,5 +1,4 @@
-import { CosmosNetworkConfig, endpoints, ExternalAccount, Signer, type NetworkConfig } from '@apophis-sdk/core';
-import { addresses } from '@apophis-sdk/core/address.js';
+import { CosmosNetworkConfig, endpoints, ExternalAccount, ExternalAccountMap, Signer, type NetworkConfig } from '@apophis-sdk/core';
 import { pubkey, PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
 import { BroadcastMode } from '@apophis-sdk/core/types.sdk.js';
 import * as utils from '@apophis-sdk/core/utils.js';
@@ -51,9 +50,11 @@ export class LocalSigner extends Signer<CosmosTx> {
   async connect(networks: CosmosNetworkConfig[]): Promise<ExternalAccount[]> {
     if (!networks.length) throw new Error('No networks provided');
     this.#networks = networks;
+    const accounts: ExternalAccountMap = {};
     for (const network of networks) {
-      this.initAccounts(network, [this.getPublicKey(network)]);
+      this.initAccounts(accounts, network, [this.getPublicKey(network)]);
     }
+    this.accounts.value = Object.values(accounts);
     await this.updateSignData(networks);
     return this.accounts.peek();
   }

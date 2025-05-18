@@ -7,6 +7,7 @@ import { mw } from './middleware';
 import { toBase64 } from './utils';
 
 export type AccountData = FullAccountData | PartialAccountData;
+export type ExternalAccountMap = Record<string, ExternalAccount>;
 
 export interface FullAccountData {
   address: string;
@@ -59,7 +60,7 @@ export abstract class Signer<Tx extends TxBase = TxBase> {
    * populates the given `accounts` object with the new accounts. `accounts` keys can be computed
    * from the public key using `Signer.getPubkeyIndex`.
    */
-  protected initAccounts(accounts: Record<string, ExternalAccount>, network: NetworkConfig, pubkeys: PublicKey[]) {
+  protected initAccounts(accounts: ExternalAccountMap, network: NetworkConfig, pubkeys: PublicKey[]) {
     for (const pubkey of pubkeys) {
       const idx = Signer.getPubkeyIndex(pubkey);
       if (!accounts[idx]) {
