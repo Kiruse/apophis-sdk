@@ -9,7 +9,7 @@
     },
     "packages/core": {
       "name": "@apophis-sdk/core",
-      "version": "0.3.0-rc.6",
+      "version": "0.3.1-rc.1",
       "dependencies": {
         "@kiruse/decimal": "^1.0.5-fix.1",
         "@kiruse/marshal": "^0.2.0-rc.1",
@@ -32,8 +32,10 @@
     },
     "packages/cosmos": {
       "name": "@apophis-sdk/cosmos",
-      "version": "0.3.0-rc.6",
+      "version": "0.3.1-rc.1",
       "dependencies": {
+        "@noble/hashes": "^1.7.1",
+        "@scure/base": "^1.2.4",
         "@scure/bip32": "^1.6.2",
         "@scure/bip39": "^1.5.4",
         "classnames": "^2.5.1",
@@ -42,12 +44,11 @@
       "devDependencies": {
         "@cosmjs/amino": "^0.33.0",
         "@cosmjs/stargate": "^0.33.0",
-        "@noble/hashes": "^1.7.1",
-        "@scure/base": "^1.2.4",
+        "@kiruse/hiproto": "^0.1.5",
         "bun-types": "^1.1.24",
       },
       "peerDependencies": {
-        "@apophis-sdk/core": "0.3.0",
+        "@apophis-sdk/core": "0.3.1-rc.1",
         "@preact/signals": "^1.3.0",
         "preact": "^10.23.2",
         "typescript": "^5.0.0",
@@ -55,7 +56,7 @@
     },
     "packages/cosmos-signers": {
       "name": "@apophis-sdk/cosmos-signers",
-      "version": "0.3.0-rc.6",
+      "version": "0.3.1-rc.1",
       "dependencies": {
         "@apophis-sdk/keplr-signer": "0.3.0",
         "@apophis-sdk/walletconnect-signer": "0.3.0",
@@ -64,7 +65,7 @@
     },
     "packages/cosmwasm": {
       "name": "@apophis-sdk/cosmwasm",
-      "version": "0.3.0-rc.6",
+      "version": "0.3.1-rc.1",
       "dependencies": {
         "classnames": "^2.5.1",
         "tslib": "^2.6.3",
@@ -82,7 +83,7 @@
     },
     "packages/keplr-signer": {
       "name": "@apophis-sdk/keplr-signer",
-      "version": "0.3.0-rc.6",
+      "version": "0.3.1-rc.1",
       "dependencies": {
         "@keplr-wallet/types": "^0.12.121",
         "long": "^5.2.3",
@@ -99,7 +100,7 @@
     },
     "packages/walletconnect-signer": {
       "name": "@apophis-sdk/walletconnect-signer",
-      "version": "0.3.0-rc.6",
+      "version": "0.3.1-rc.1",
       "dependencies": {
         "@walletconnect/sign-client": "^2.16.2",
         "qrcode": "^1.5.4",
@@ -154,6 +155,8 @@
     "@keplr-wallet/types": ["@keplr-wallet/types@0.12.121", "", { "dependencies": { "long": "^4.0.0" } }, ""],
 
     "@kiruse/decimal": ["@kiruse/decimal@1.0.5-fix.1", "", { "peerDependencies": { "@kiruse/marshal": "^0.2.0-rc.1" } }, ""],
+
+    "@kiruse/hiproto": ["@kiruse/hiproto@0.1.5", "", { "peerDependencies": { "typescript": "^5" } }, "sha512-t0L+SvwE5hdTigdT3JZyVsXNsh+0YPGp6xayYorYfrZJhzoOJQTboUrJgJsLBAHTE+0GnB7tIkwMDOWsPjzw5w=="],
 
     "@kiruse/marshal": ["@kiruse/marshal@0.2.0-rc.1", "", {}, "sha512-99uBYocK8VzHE2mAwkSgRhMdxFAJ+oufMafRo0l2XzCPdIZmOabrkIB82UuZiA2Y3APzg4mpEMfXn0Jnr6sGeQ=="],
 

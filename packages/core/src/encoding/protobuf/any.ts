@@ -1,3 +1,4 @@
+import { IMessage } from '@kiruse/hiproto/message';
 import { type MiddlewareImpl, mw } from '../../middleware.js';
 import type { Bytes, NetworkConfig } from '../../types.js';
 import { fromBase64 } from '../../utils.js';
@@ -27,6 +28,12 @@ export type ProtobufType<T1 extends string = string, T2 = any> = {
   get protobufTypeUrl(): T1;
   toProtobuf(value: T2): Uint8Array;
   fromProtobuf(value: Uint8Array): T2;
+}
+
+export type ProtobufSchemaType<T1 extends string = string, T2 = any> = {
+  get protobufTypeUrl(): T1;
+  get protobufSchema(): IMessage<any, T2>;
+  new (data: T2): any;
 }
 
 /** Check if a value is a proper `Any` type. */
@@ -90,7 +97,8 @@ Any.toTrueAny = (value: Any): TrueAny => {
   return value as TrueAny;
 };
 
-var defaultProtobufTypes: Record<string, ProtobufType>;
+var defaultProtobufTypes: Record<string, ProtobufType | ProtobufSchemaType>;
+/** @deprecated Use `registerDefaultProtobufSchema` instead. Will be removed in v0.4. */
 export function registerDefaultProtobufs(...types: ProtobufType[]) {
   defaultProtobufTypes ??= {};
   for (const type of types) {
@@ -99,16 +107,31 @@ export function registerDefaultProtobufs(...types: ProtobufType[]) {
   }
 }
 
+export function registerDefaultProtobufSchema<T1 extends string, T2>(type: ProtobufSchemaType<T1, T2>) {
+  defaultProtobufTypes ??= {};
+  if (type.protobufTypeUrl in defaultProtobufTypes) console.warn(`Default protobuf type ${type.protobufTypeUrl} already defined. Overriding.`);
+  defaultProtobufTypes[type.protobufTypeUrl] = type;
+}
+
 export const ProtobufMiddleware: MiddlewareImpl = {
   encoding: {
     encode: (network: NetworkConfig, encoding: string, value: any) => {
       if (encoding !== 'protobuf' || typeof value !== 'object') return;
+
       const type = defaultProtobufTypes[value?.protobufTypeUrl ?? value?.constructor?.protobufTypeUrl];
       if (!type) return;
-      return {
-        typeUrl: type.protobufTypeUrl,
-        value: type.toProtobuf(value),
-      };
+
+      if ('protobufSchema' in type) {
+        return {
+          typeUrl: type.protobufTypeUrl,
+          value: type.protobufSchema.encode(value.data).toShrunk().seek(0).toUint8Array(),
+        };
+      } else {
+        return {
+          typeUrl: type.protobufTypeUrl,
+          value: type.toProtobuf(value),
+        };
+      }
     },
     decode: (network: NetworkConfig, encoding: string, value: unknown) => {
       if (encoding !== 'protobuf') return;
@@ -119,9 +142,16 @@ export const ProtobufMiddleware: MiddlewareImpl = {
         };
       }
       if (!Any.isAny(value)) return;
+
       const type = defaultProtobufTypes[value.typeUrl];
       if (!type) return;
-      return type.fromProtobuf(typeof value.value === 'string' ? fromBase64(value.value) : value.value);
+
+      const bytes = typeof value.value === 'string' ? fromBase64(value.value) : value.value;
+      if ('protobufSchema' in type) {
+        return new type(type.protobufSchema.decode(bytes));
+      } else {
+        return type.fromProtobuf(bytes);
+      }
     },
   },
 };
