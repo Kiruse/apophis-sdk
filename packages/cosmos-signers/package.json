@@ -1,6 +1,6 @@
 {
   "name": "@apophis-sdk/cosmos-signers",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "author": "Kiruse",
   "repository": "https://github.com/kiruse/apophis-sdk.git",
   "type": "module",
