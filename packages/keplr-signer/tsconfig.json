@@ -4,7 +4,7 @@
     "baseUrl": ".",
     "rootDir": "src",
     "outDir": "dist",
-    "types": ["node", "long"],
+    "types": ["node"],
     "lib": ["DOM", "ESNext"],
   },
   "include": ["src/**/*.ts"],

@@ -4,7 +4,6 @@ import { fromBase64, toHex } from '@apophis-sdk/core/utils.js';
 import { Cosmos, CosmosTx, CosmosTxDirect, TxMarshaller } from '@apophis-sdk/cosmos';
 import { type Window as KeplrWindow } from '@keplr-wallet/types';
 import { AuthInfo, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
-import Long from 'long';
 import LOGO_DATA_URL from './logos/keplr';
 
 declare global {
@@ -128,7 +127,7 @@ export class KeplrSigner extends Signer<CosmosTx> {
     const signDoc = tx.signDoc(network, this);
     const keplrSignDoc = {
       ...signDoc,
-      accountNumber: Long.fromValue(signDoc.accountNumber.toString()),
+      accountNumber: Number(signDoc.accountNumber),
     };
 
     const {

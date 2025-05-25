@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@kiruse/decimal": "^1.0.5-fix.1",
+    "@kiruse/hiproto": "^0.1.6",
     "@kiruse/marshal": "^0.2.0-rc.1",
     "@kiruse/restful": "^0.2.3-fix.3",
     "@kiruse/typed-events": "^1.1.0",
