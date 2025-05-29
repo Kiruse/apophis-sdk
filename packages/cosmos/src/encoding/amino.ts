@@ -8,14 +8,12 @@ import { BytesMarshalUnit } from '@apophis-sdk/core/marshal.js';
 import { MiddlewareImpl, mw } from '@apophis-sdk/core/middleware.js';
 import type { Bytes, NetworkConfig } from '@apophis-sdk/core/types.js';
 import type { Coin } from '@apophis-sdk/core/types.sdk.js';
-import { extendDefaultMarshaller } from '@kiruse/marshal';
-
-import { defineMarshalUnit, morph, pass, RecaseMarshalUnit } from '@kiruse/marshal';
-import { recase } from '@kristiandupont/recase';
+import { defineMarshalUnit, extendDefaultMarshaller, Marshaller, morph, pass } from '@kiruse/marshal';
 
 /** Descriptor for a type that can be de/serialized to/from Amino. */
 export interface AminoType<T1 extends string = string, T2 = any> {
-  get aminoTypeUrl(): T1;
+  readonly aminoTypeUrl: T1;
+  readonly aminoMarshaller?: Marshaller;
   new(data: T2): { get data(): T2 };
 }
 
@@ -96,10 +94,6 @@ export const SortedObjectMarshalUnit = defineMarshalUnit(
 export const defaultAminoMarshalUnits = [
   BytesMarshalUnit,
   SortedObjectMarshalUnit,
-  RecaseMarshalUnit(
-    recase('mixed', 'snake'),
-    recase('snake', 'camel'),
-  ),
 ];
 /** Marshaller for amino encoding of Cosmos messages. */
 export const AminoMarshaller = extendDefaultMarshaller(defaultAminoMarshalUnits);
@@ -140,18 +134,19 @@ export const AminoMiddleware: MiddlewareImpl = {
   encoding: {
     encode: (network: NetworkConfig, encoding: string, value: any) => {
       if (encoding !== 'amino') return;
-      const type = value?.aminoTypeUrl ?? value?.constructor?.aminoTypeUrl;
-      if (!type) return;
+      const type: AminoType | undefined = value?.constructor;
+      const typeUrl = value?.aminoTypeUrl ?? value?.constructor?.aminoTypeUrl;
+      if (!typeUrl) return;
       return {
-        type,
-        value: AminoMarshaller.marshal(value.data),
+        type: typeUrl,
+        value: (type?.aminoMarshaller ?? AminoMarshaller).marshal(value.data),
       };
     },
     decode: (network: NetworkConfig, encoding: string, value: any) => {
       if (encoding !== 'amino' || !Amino.isAmino(value)) return;
       const type = defaultAminoTypes[value.type];
       if (!type) return;
-      return new type(AminoMarshaller.unmarshal(value.value));
+      return new type((type.aminoMarshaller ?? AminoMarshaller).unmarshal(value.value));
     },
   },
 };

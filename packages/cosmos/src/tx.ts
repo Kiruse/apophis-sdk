@@ -271,15 +271,16 @@ export class CosmosTxAmino extends CosmosTxBase<SdkTxDirect> {
     if (!ExternalAccount.isComplete(signData)) throw new Error('Sign data incomplete');
     const mwstack = mw('encoding', 'encode').inv();
     return Amino.normalize({
-      chainId: network.chainId,
-      accountNumber: signData.accountNumber,
+      chain_id: network.chainId,
+      account_number: signData.accountNumber,
       sequence: signData.sequence,
       fee: this.gas ? {
         amount: this.gas.amount,
         gas: this.gas.gasLimit,
-      }: {},
+      } : {},
       memo: this.memo,
       msgs: this.messages.map(msg => mwstack.fifo(network, 'amino', msg)),
+      ...(this.timeoutHeight && { timeout_height: this.timeoutHeight }),
     });
   }
 

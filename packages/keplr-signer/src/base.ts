@@ -1,7 +1,7 @@
 import { endpoints, ExternalAccount, Signer, type CosmosNetworkConfig } from '@apophis-sdk/core';
 import { pubkey, PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
 import { fromBase64, toHex } from '@apophis-sdk/core/utils.js';
-import { Cosmos, CosmosTx, CosmosTxDirect, TxMarshaller } from '@apophis-sdk/cosmos';
+import { Amino, Cosmos, CosmosTx, CosmosTxAmino, CosmosTxDirect, TxMarshaller } from '@apophis-sdk/cosmos';
 import { type Window as KeplrWindow } from '@keplr-wallet/types';
 import { AuthInfo, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
 import LOGO_DATA_URL from './logos/keplr';
@@ -113,17 +113,50 @@ export class KeplrSigner extends Signer<CosmosTx> {
   }
 
   async sign(network: CosmosNetworkConfig, tx: CosmosTx): Promise<CosmosTx> {
-    const signData = this.getSignData(network);
+    if (!network) throw new Error('No network provided');
 
+    const signData = this.getSignData(network);
     if (!ExternalAccount.isComplete(signData))
       await this.updateSignData([this.getAccount(network)], [network]);
     if (!ExternalAccount.isComplete(signData)) throw new Error('Sign data incomplete');
 
-    const { address, publicKey } = signData;
-    if (!this.backend) throw new Error('Keplr not available');
-    if (!address || !publicKey || !network) throw new Error('Account not bound to a network');
+    const { address } = signData;
+    if (!address) throw new Error('Account not bound to a network');
 
+    if (tx.encoding === 'amino') {
+      return await this.#signAmino(network, tx, address);
+    } else {
+      return await this.#signDirect(network, tx, address);
+    }
+  }
+
+  async #signAmino(network: CosmosNetworkConfig, tx: CosmosTxAmino, address: string): Promise<CosmosTx> {
+    if (!this.backend) throw new Error('Keplr not available');
     const signer = await this.backend.getOfflineSigner(network.chainId);
+
+    const {
+      signed,
+      signature: { signature },
+    } = await signer.signAmino(address, TxMarshaller.marshal(tx.signDoc(network, this)) as any);
+
+    tx.messages = signed.msgs.map(msg => Amino.decode(network, msg));
+    tx.memo = signed.memo;
+    tx.timeoutHeight = BigInt(signed.timeout_height ?? 0n);
+    tx.gas = {
+      amount: signed.fee.amount.map(coin => Cosmos.coin(coin.amount, coin.denom)),
+      gasLimit: BigInt(signed.fee.gas),
+      granter: signed.fee.granter,
+      payer: signed.fee.payer,
+    };
+
+    tx.setSignature(network, this, fromBase64(signature));
+    return tx;
+  }
+
+  async #signDirect(network: CosmosNetworkConfig, tx: CosmosTxDirect, address: string): Promise<CosmosTx> {
+    if (!this.backend) throw new Error('Keplr not available');
+    const signer = await this.backend.getOfflineSigner(network.chainId);
+
     const signDoc = tx.signDoc(network, this);
     const keplrSignDoc = {
       ...signDoc,

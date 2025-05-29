@@ -1,6 +1,6 @@
 import { BytesMarshalUnit } from '@apophis-sdk/core/marshal.js';
 import { type CosmosNetworkConfig } from '@apophis-sdk/core/networks.js';
-import { ExternalAccount, type Signer } from '@apophis-sdk/core/signer.js';
+import { type Signer } from '@apophis-sdk/core/signer.js';
 import type { Coin, TransactionResponse } from '@apophis-sdk/core/types.sdk.js';
 import { fromBase64, fromHex, fromUtf8, toBase64, toUtf8 } from '@apophis-sdk/core/utils.js';
 import { Cosmos } from '@apophis-sdk/cosmos';
@@ -97,7 +97,7 @@ export class CosmWasmApi {
   }
 
   /** Convenience function to invoke a contract execution. Waits for block inclusion & returns the transaction response. */
-  async execute(network: CosmosNetworkConfig, signer: Signer, contractAddress: string, msg: Uint8Array, funds: Coin[] = []): Promise<TransactionResponse> {
+  async execute(network: CosmosNetworkConfig, signer: Signer, contractAddress: string, msg: any, funds: Coin[] = []): Promise<TransactionResponse> {
     const tx = Cosmos.tx([
       new Contract.Execute({
         sender: signer.address(network),
@@ -138,8 +138,8 @@ export class CosmWasmApi {
      * data returned depends on the smart contract code but is typically a JSON object, for which
      * this method accepts a type parameter.
      */
-    async smart<T = unknown>(network: CosmosNetworkConfig, contractAddress: string, queryMsg: Uint8Array) {
-      const result = await Cosmos.rest(network).cosmwasm.wasm.v1.contract[contractAddress].smart[toBase64(queryMsg)]('GET');
+    async smart<T = unknown>(network: CosmosNetworkConfig, contractAddress: string, queryMsg: any) {
+      const result = await Cosmos.rest(network).cosmwasm.wasm.v1.contract[contractAddress].smart[CosmWasm.toBinary(queryMsg)]('GET');
       if ((result as any).code) {
         throw new Error('Failed to perform smart query');
       }
@@ -179,12 +179,12 @@ export class CosmWasmApi {
     }
   }(this);
 
-  toBinary(value: any): Uint8Array {
-    return fromUtf8(JSON.stringify(this.marshaller.marshal(value)));
+  toBinary(value: any): string {
+    return toBase64(fromUtf8(JSON.stringify(this.marshaller.marshal(value))));
   }
 
-  fromBinary(value: Uint8Array): unknown {
-    return this.marshaller.unmarshal(JSON.parse(toUtf8(value)));
+  fromBinary(value: string): unknown {
+    return this.marshaller.unmarshal(JSON.parse(toUtf8(fromBase64(value))));
   }
 }
 

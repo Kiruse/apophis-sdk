@@ -1,6 +1,6 @@
 {
   "name": "@apophis-sdk/keplr-signer",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "author": "Kiruse",
   "repository": "https://github.com/kiruse/apophis-sdk.git",
   "type": "module",
