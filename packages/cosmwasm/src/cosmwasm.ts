@@ -186,6 +186,10 @@ export class CosmWasmApi {
   fromBinary(value: string): unknown {
     return this.marshaller.unmarshal(JSON.parse(toUtf8(fromBase64(value))));
   }
+
+  encodeKeypath = encodeKeypath;
+  decodeKeypath = decodeKeypath;
+  decodeKeypathMaybe = decodeKeypathMaybe;
 }
 
 export const CosmWasm = new CosmWasmApi();
