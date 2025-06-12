@@ -220,12 +220,18 @@ export function decodeKeypath(keypath: Uint8Array): string[] {
   let offset = 0;
   let isLast = false;
   while (offset < keypath.length) {
+    if (offset + 2 > keypath.length) {
+      isLast = true;
+      break;
+    }
+
     const keyLength = view.getUint16(offset, false);
     if (offset + 2 + keyLength > keypath.length) {
       isLast = true;
       break;
     }
-    offset += 2;
+    offset += 2; // doing this after the check is important to not skip 2 bytes of the last key
+
     result.push(toUtf8(keypath.subarray(offset, offset + keyLength)));
     offset += keyLength;
   }

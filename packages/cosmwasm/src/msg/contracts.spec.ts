@@ -152,7 +152,7 @@ describe('CosmWasm Contracts', () => {
       const msg = new Contract.Execute({
         sender: 'cosmos1...',
         contract: 'cosmos1...',
-        msg: [{ execute: 'data' }],
+        msg: { execute: 'data' },
         funds: [{ denom: 'uatom', amount: 1000000n }],
       });
 
@@ -165,7 +165,7 @@ describe('CosmWasm Contracts', () => {
       expect(unmarshalled.data).toMatchObject({
         sender: 'cosmos1...',
         contract: 'cosmos1...',
-        msg: [{ execute: 'data' }],
+        msg: { execute: 'data' },
         funds: [{ denom: 'uatom', amount: 1000000n }],
       });
     });
