@@ -18,11 +18,7 @@ export class LeapSigner extends KeplrSigner {
   }
 
   override keplrProbe() {
-    return !!window.leap;
-  }
-
-  override probe(): Promise<boolean> {
-    return Promise.resolve(this.available.value = !!window.leap);
+    return typeof window !== 'undefined' && !!window.leap;
   }
 
   /** Get the Leap instance. Primarily used internally. Unfortunately, the typing is broken. */
