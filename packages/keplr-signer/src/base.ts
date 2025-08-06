@@ -30,7 +30,7 @@ export class KeplrSigner extends Signer<CosmosTx> {
 
   /** Internal non-async method to prove for presence of Keplr. Can be overridden by Keplr fork integrations like Leap. */
   keplrProbe(): boolean {
-    return !!window.keplr && !FAKERS.some(f => window.keplr === (window as any)[f]);
+    return typeof window !== 'undefined' && !!window.keplr && !FAKERS.some(f => window.keplr === (window as any)[f]);
   }
 
   probe(): Promise<boolean> {

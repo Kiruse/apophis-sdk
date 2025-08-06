@@ -15,7 +15,6 @@ export class LeapSigner extends KeplrSigner {
 
   constructor() {
     super();
-    this.available.value = !!window.leap;
   }
 
   override keplrProbe() {
