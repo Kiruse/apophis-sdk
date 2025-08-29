@@ -346,7 +346,6 @@ export class CosmosWebSocket {
                 index: tx.index,
               });
             } else {
-              console.log('cosmos tx string', tx.tx);
               this.#subs[result.id]?.callback({
                 height: tx.height,
                 txhash: CosmosTxDirect.computeHash(tx.tx),

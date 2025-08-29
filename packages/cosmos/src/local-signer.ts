@@ -11,7 +11,10 @@ import * as secp256k1 from '@noble/secp256k1';
 import { Cosmos } from './api.js';
 import { CosmosTx } from './tx.js';
 
-secp256k1.etc.hmacSha256Sync = (k, ...m) => hmac(sha256, k, secp256k1.etc.concatBytes(...m));
+if (!secp256k1.hashes.hmacSha256)
+  secp256k1.hashes.hmacSha256 = (key, msg) => hmac(sha256, key, msg);
+if (!secp256k1.hashes.sha256)
+  secp256k1.hashes.sha256 = sha256;
 
 var signers = new Set<WeakRef<LocalSigner>>();
 
@@ -69,10 +72,10 @@ export class LocalSigner extends Signer<CosmosTx> {
   async sign(network: NetworkConfig, tx: CosmosTx): Promise<CosmosTx> {
     if (network.ecosystem !== 'cosmos') throw new Error('Currently, only Cosmos chains are supported');
     const bs = tx.signBytes(network, this);
-    const signature = secp256k1.sign(bs, this.#getPrivateKey(network));
-    const sigBytes = signature.toCompactRawBytes();
+    const opts = { prehash: false, lowS: true };
+    const sigBytes = secp256k1.sign(bs, this.#getPrivateKey(network), opts);
     if (sigBytes.length !== 64) throw new Error('Invalid signature length');
-    if (!secp256k1.verify(sigBytes, bs, utils.bytes(this.getPublicKey(network).bytes), { lowS: true }))
+    if (!secp256k1.verify(sigBytes, bs, utils.bytes(this.getPublicKey(network).bytes), opts))
       throw new Error('Invalid signature');
 
     tx.setSignature(network, this, sigBytes);
@@ -89,6 +92,7 @@ export class LocalSigner extends Signer<CosmosTx> {
     const { tx_response: response } = await Cosmos.rest(network).cosmos.tx.v1beta1.txs('POST', { mode: BroadcastMode.BROADCAST_MODE_SYNC, tx_bytes: tx.bytes() });
     if (response.code) {
       tx.reject(response.txhash, response.raw_log);
+      throw new Error(`Transaction rejected with codespace ${response.codespace}, code ${response.code}, raw log: ${response.raw_log}`);
     } else {
       tx.confirm(response.txhash);
     }
