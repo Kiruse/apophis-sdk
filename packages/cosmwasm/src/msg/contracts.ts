@@ -42,7 +42,7 @@ export namespace Contract {
   export const pbInstantiate = hpb.message({
     admin: hpb.string(1).required(),
     sender: hpb.string(2).required(),
-    codeId: hpb.string(3).required().transform(bigintTransform),
+    codeId: hpb.uint64(3).required(),
     label: hpb.string(4),
     msg: hpb.json<any>(5).required().transform(aminoTransform),
     funds: hpb.repeated.submessage(6, pbCoin).required(),
