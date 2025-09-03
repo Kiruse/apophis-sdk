@@ -62,6 +62,28 @@ export namespace Contract {
   registerDefaultProtobufSchema(Instantiate);
   //#endregion Instantiate
 
+  //#region Migrate
+  export const pbMigrate = hpb.message({
+    sender: hpb.string(1).required(),
+    contract: hpb.string(2).required(),
+    codeId: hpb.uint64(3).required(),
+    msg: hpb.json<any>(3).required().transform(aminoTransform),
+  });
+
+  export type MigrateData = hpb.infer<typeof pbMigrate>;
+
+  export class Migrate {
+    static readonly aminoTypeUrl = 'wasm/MsgMigrateContract';
+    static readonly aminoMarshaller = marshaller;
+    static readonly protobufTypeUrl = '/cosmwasm.wasm.v1.MsgMigrateContract';
+    static readonly protobufSchema = pbMigrate;
+    constructor(public data: MigrateData) {}
+  }
+
+  registerDefaultAminos(Migrate);
+  registerDefaultProtobufSchema(Migrate);
+  //#endregion Migrate
+
   //#region Execute
   export const pbExecute = hpb.message({
     sender: hpb.string(1).required(),

@@ -96,6 +96,29 @@ export class CosmWasmApi {
     return contractAddress[0];
   }
 
+  /** Convenience function to migrate a contract to a new code. Waits for block inclusion & returns the transaction response. */
+  async migrate(network: CosmosNetworkConfig, signer: Signer, contractAddress: string, codeId: bigint, msg: any): Promise<TransactionResponse> {
+    const tx = Cosmos.tx([
+      new Contract.Migrate({
+        sender: signer.address(network),
+        contract: contractAddress,
+        codeId,
+        msg,
+      }),
+    ]);
+
+    const { gasLimit } = await tx.estimateGas(network, signer);
+    tx.computeGas(network, gasLimit + 50000n, true);
+
+    await signer.sign(network, tx);
+    await Cosmos.ws(network).ready(10000);
+    const resultPromise = Cosmos.ws(network).expectTx(tx);
+    await tx.broadcast();
+
+    await resultPromise;
+    return await Cosmos.ws(network).getTx(tx.hash);
+  }
+
   /** Convenience function to invoke a contract execution. Waits for block inclusion & returns the transaction response. */
   async execute(network: CosmosNetworkConfig, signer: Signer, contractAddress: string, msg: any, funds: Coin[] = []): Promise<TransactionResponse> {
     const tx = Cosmos.tx([
