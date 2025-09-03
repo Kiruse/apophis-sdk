@@ -26,7 +26,7 @@ export interface StateItem {
   value: Uint8Array;
 }
 
-export interface ContractInfo {
+export interface Cw2ContractInfo {
   contract: string;
   version: string;
 }
@@ -194,11 +194,27 @@ export class CosmWasmApi {
       };
     }
 
-    /** Attempt to query the CW2 standard contract info. */
+    /** Query the contract info from the CosmWasm module, as well as attempt to query the CW2
+     * standard contract info.
+     */
     async contractInfo(network: CosmosNetworkConfig, contractAddress: string) {
-      const data = await this.raw(network, contractAddress, ['contract_info']);
-      if (data === null) return null;
-      return this.api.marshaller.unmarshal(JSON.parse(toUtf8(data))) as ContractInfo;
+      const [
+        contractInfo,
+        cw2Raw,
+      ] = await Promise.all([
+        Cosmos.rest(network).cosmwasm.wasm.v1.contract[contractAddress]('GET'),
+        this.raw(network, contractAddress, ['contract_info']),
+      ]);
+
+      const cw2 = cw2Raw !== null
+        ? this.api.marshaller.unmarshal(JSON.parse(toUtf8(cw2Raw))) as Cw2ContractInfo
+        : null;
+
+      return {
+        address: contractAddress,
+        ...contractInfo.contract_info,
+        ...cw2,
+      };
     }
   }(this);
 

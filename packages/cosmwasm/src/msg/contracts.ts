@@ -40,8 +40,8 @@ export namespace Contract {
 
   //#region Instantiate
   export const pbInstantiate = hpb.message({
-    admin: hpb.string(1).required(),
-    sender: hpb.string(2).required(),
+    sender: hpb.string(1).required(),
+    admin: hpb.string(2),
     codeId: hpb.uint64(3).required(),
     label: hpb.string(4),
     msg: hpb.json<any>(5).required().transform(aminoTransform),
@@ -62,12 +62,39 @@ export namespace Contract {
   registerDefaultProtobufSchema(Instantiate);
   //#endregion Instantiate
 
+  //#region Instantiate2
+  export const pbInstantiate2 = hpb.message({
+    sender: hpb.string(1).required(),
+    admin: hpb.string(2),
+    codeId: hpb.uint64(3).required(),
+    label: hpb.string(4),
+    msg: hpb.json<any>(5).required().transform(aminoTransform),
+    funds: hpb.repeated.submessage(6, pbCoin).required(),
+    salt: hpb.bytes(7),
+    /** Whether to include the message hash in the calculation for the predictable address. Defaults to false. */
+    fixMsg: hpb.bool(8),
+  });
+
+  export type Instantiate2Data = hpb.infer<typeof pbInstantiate2>;
+
+  export class Instantiate2 {
+    static readonly aminoTypeUrl = 'wasm/MsgInstantiateContract2';
+    static readonly aminoMarshaller = marshaller;
+    static readonly protobufTypeUrl = '/cosmwasm.wasm.v1.MsgInstantiateContract2';
+    static readonly protobufSchema = pbInstantiate2;
+    constructor(public data: Instantiate2Data) {}
+  }
+
+  registerDefaultAminos(Instantiate2);
+  registerDefaultProtobufSchema(Instantiate2);
+  //#endregion Instantiate2
+
   //#region Migrate
   export const pbMigrate = hpb.message({
     sender: hpb.string(1).required(),
     contract: hpb.string(2).required(),
     codeId: hpb.uint64(3).required(),
-    msg: hpb.json<any>(3).required().transform(aminoTransform),
+    msg: hpb.json<any>(4).required().transform(aminoTransform),
   });
 
   export type MigrateData = hpb.infer<typeof pbMigrate>;

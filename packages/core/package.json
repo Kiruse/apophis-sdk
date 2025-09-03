@@ -1,6 +1,6 @@
 {
   "name": "@apophis-sdk/core",
-  "version": "0.3.10",
+  "version": "0.3.11",
   "author": "Kiruse",
   "repository": "https://github.com/kiruse/apophis-sdk.git",
   "type": "module",
@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@kiruse/decimal": "^1.0.5-fix.1",
-    "@kiruse/hiproto": "^0.1.11",
+    "@kiruse/hiproto": "^0.1.15",
     "@kiruse/marshal": "^0.2.1",
     "@kiruse/restful": "^0.2.3-fix.3",
     "@kiruse/typed-events": "^1.1.0",
