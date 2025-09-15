@@ -3,7 +3,7 @@ import { Any } from '@apophis-sdk/core/encoding/protobuf/any.js';
 import { network } from '@apophis-sdk/core/test-helpers.js';
 import { fromHex } from '@apophis-sdk/core/utils.js';
 import { pubkey } from '@apophis-sdk/core/crypto/pubkey.js';
-import { CosmosEd25519TypeUrl, CosmosSecp256k1TypeUrl } from './pubkey';
+import { CosmosEd25519TypeUrl, CosmosSecp256k1TypeUrl } from './pubkey.js';
 import { addresses } from '@apophis-sdk/core';
 
 // both secp256k1 & ed25519 pubkeys are 40 bytes + varint32 length prefix

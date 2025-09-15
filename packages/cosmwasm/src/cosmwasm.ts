@@ -185,10 +185,16 @@ export class CosmWasmApi {
         },
       });
 
+      const hexify = (value: string | bigint) => {
+        value = value.toString();
+        if (value.length % 2 !== 0) value = '0' + value;
+        return value;
+      }
+
       return {
         pagination,
         items: models.map(model => ({
-          keypath: decodeKeypathMaybe(fromHex(model.key)),
+          keypath: decodeKeypathMaybe(fromHex(hexify(model.key))),
           value: fromBase64(model.value),
         })),
       };

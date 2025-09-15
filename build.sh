@@ -16,6 +16,15 @@ if [ "$1" = "clean" ]; then
   exit 0
 fi
 
+# Run linting first - fail if there are any errors
+echo "Running ESLint..."
+cd "$dir"
+if ! npm run lint; then
+  echo "❌ Linting failed! Build aborted."
+  exit 1
+fi
+echo "✅ Linting passed!"
+
 # Build static order packages first
 for package in $static_order_packages; do
   cd "$package"

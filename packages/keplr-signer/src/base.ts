@@ -115,9 +115,10 @@ export class KeplrSigner extends Signer<CosmosTx> {
   async sign(network: CosmosNetworkConfig, tx: CosmosTx): Promise<CosmosTx> {
     if (!network) throw new Error('No network provided');
 
+    // Always update sign data before signing to ensure we have the latest sequence number
+    await this.updateSignData([this.getAccount(network)], [network]);
+
     const signData = this.getSignData(network);
-    if (!ExternalAccount.isComplete(signData))
-      await this.updateSignData([this.getAccount(network)], [network]);
     if (!ExternalAccount.isComplete(signData)) throw new Error('Sign data incomplete');
 
     const { address } = signData;

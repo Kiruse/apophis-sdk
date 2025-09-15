@@ -28,6 +28,10 @@ export class LocalSigner extends Signer<CosmosTx> {
   readonly canAutoReconnect = true;
   readonly displayName = 'Local';
   readonly logoURL = undefined;
+  /** Whether to automatically update sign data before signing. Set to false if you intend to manage
+   * the sequence number manually.
+   */
+  autoUpdateSignData = true;
 
   constructor() {
     super();
@@ -71,6 +75,11 @@ export class LocalSigner extends Signer<CosmosTx> {
 
   async sign(network: NetworkConfig, tx: CosmosTx): Promise<CosmosTx> {
     if (network.ecosystem !== 'cosmos') throw new Error('Currently, only Cosmos chains are supported');
+
+    // Always update sign data before signing to ensure we have the latest sequence number
+    if (this.autoUpdateSignData)
+      await this.updateSignData([network]);
+
     const bs = tx.signBytes(network, this);
     const opts = { prehash: false, lowS: true };
     const sigBytes = secp256k1.sign(bs, this.#getPrivateKey(network), opts);

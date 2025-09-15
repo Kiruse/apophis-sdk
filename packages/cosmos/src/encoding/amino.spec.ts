@@ -5,7 +5,7 @@ import { fromHex, toBase64 } from '@apophis-sdk/core/utils.js';
 import { describe, expect, test } from 'bun:test';
 import { CosmosSecp256k1AminoType } from '../crypto/pubkey.js';
 import { DefaultCosmosMiddlewares } from '../middleware.js';
-import { Amino, registerDefaultAminos } from './amino';
+import { Amino, registerDefaultAminos } from './amino.js';
 
 mw.use(...DefaultCosmosMiddlewares);
 
