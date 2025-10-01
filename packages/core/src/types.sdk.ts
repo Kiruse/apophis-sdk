@@ -2,7 +2,7 @@
 import type { RestMethods } from '@kiruse/restful';
 import { BroadcastMode } from 'cosmjs-types/cosmos/tx/v1beta1/service.js';
 import type { Tx as CosmosTransaction } from 'cosmjs-types/cosmos/tx/v1beta1/tx.js';
-import type { Protobuf } from './encoding';
+import type { Protobuf } from './encoding/index.js';
 
 export { BroadcastMode, CosmosTransaction };
 

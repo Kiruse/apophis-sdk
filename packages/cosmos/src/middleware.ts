@@ -1,9 +1,9 @@
 import { DefaultMiddlewares } from '@apophis-sdk/core';
 import type { CosmosEndpoint, CosmosEndpoints, CosmosNetworkConfig, ExternalAccount, NetworkConfig } from '@apophis-sdk/core';
 import type { MiddlewareImpl } from '@apophis-sdk/core/middleware.js';
-import { CosmosPubkeyMiddleware } from './crypto/pubkey';
-import { AminoMiddleware } from './encoding/amino';
-import { Cosmos } from './api';
+import { CosmosPubkeyMiddleware } from './crypto/pubkey.js';
+import { AminoMiddleware } from './encoding/amino.js';
+import { Cosmos } from './api.js';
 
 const store = new Map<CosmosNetworkConfig, CosmosEndpoints>();
 

@@ -1,9 +1,9 @@
 import { base58, bech32 } from '@scure/base';
-import { NetworkConfig, SolanaNetworkConfig } from './networks';
-import { type MiddlewareAddresses, type MiddlewareImpl, mw } from './middleware';
+import { NetworkConfig, SolanaNetworkConfig } from './networks.js';
+import { type MiddlewareAddresses, type MiddlewareImpl, mw } from './middleware.js';
 import { DeepPartial } from 'cosmjs-types';
-import { pubkey, PublicKey } from './crypto/pubkey';
-import { fromBase64 } from './utils';
+import { pubkey, PublicKey } from './crypto/pubkey.js';
+import { fromBase64 } from './utils.js';
 
 /** Registry of address aliases. Most of the time, humans can't remember addresses, which is why
  * name registries are often established. `addresses` is an extensible singleton using middlewares

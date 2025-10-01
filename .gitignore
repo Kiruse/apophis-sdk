@@ -7,3 +7,4 @@ tmp/
 .npmrc
 *.tsbuildinfo
 fiddle*.ts*
+*.tmp

@@ -3,8 +3,8 @@ import { pubkey, PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
 import { fromBase64, toHex } from '@apophis-sdk/core/utils.js';
 import { Amino, Cosmos, CosmosTx, CosmosTxAmino, CosmosTxDirect, TxMarshaller } from '@apophis-sdk/cosmos';
 import { type Window as KeplrWindow } from '@keplr-wallet/types';
-import { AuthInfo, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
-import LOGO_DATA_URL from './logos/keplr';
+import { AuthInfo, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx.js';
+import LOGO_DATA_URL from './logos/keplr.js';
 
 declare global {
   interface Window {

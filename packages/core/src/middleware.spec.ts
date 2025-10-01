@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { MiddlewareImpl, mw } from './middleware';
+import { MiddlewareImpl, mw } from './middleware.js';
 
 const ref: MiddlewareImpl = {};
 

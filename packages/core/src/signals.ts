@@ -1,6 +1,6 @@
 import { computed, signal } from '@preact/signals-core';
-import type { Signer } from './signer';
-import type { NetworkConfig } from './types';
+import type { Signer } from './signer.js';
+import type { NetworkConfig } from './types.js';
 
 /** The logged-in signer, if any. */
 export const signer = signal<Signer>();

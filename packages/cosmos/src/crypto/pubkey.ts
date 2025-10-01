@@ -5,8 +5,8 @@ import { bytes, toBase64 } from '@apophis-sdk/core/utils.js';
 import { ripemd160 } from '@noble/hashes/ripemd160';
 import { sha256 } from '@noble/hashes/sha256';
 import { bech32 } from '@scure/base';
-import { PubKey as Secp256k1PublicKey } from 'cosmjs-types/cosmos/crypto/secp256k1/keys';
-import { PubKey as Ed25519PublicKey } from 'cosmjs-types/cosmos/crypto/ed25519/keys';
+import { PubKey as Secp256k1PublicKey } from 'cosmjs-types/cosmos/crypto/secp256k1/keys.js';
+import { PubKey as Ed25519PublicKey } from 'cosmjs-types/cosmos/crypto/ed25519/keys.js';
 import { type AminoPubkey, Amino } from '../encoding/amino.js';
 
 export const CosmosSecp256k1TypeUrl = '/cosmos.crypto.secp256k1.PubKey';

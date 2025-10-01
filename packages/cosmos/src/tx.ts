@@ -2,14 +2,14 @@ import { Any, config, type CosmosNetworkConfig, ExternalAccount, NetworkConfig, 
 import { mw } from '@apophis-sdk/core/middleware.js';
 import type { Gas } from '@apophis-sdk/core/types.sdk.js';
 import { fromBase64, toHex } from '@apophis-sdk/core/utils.js';
-import { extendDefaultMarshaller, IgnoreMarshalUnit } from '@kiruse/marshal';
 import { Decimal } from '@kiruse/decimal';
+import { extendDefaultMarshaller, IgnoreMarshalUnit } from '@kiruse/marshal';
 import { sha256 } from '@noble/hashes/sha256';
 import { computed, effect, ReadonlySignal, signal } from '@preact/signals';
-import { SignMode } from 'cosmjs-types/cosmos/tx/signing/v1beta1/signing';
-import { AuthInfo, Tx as SdkTxDirect, SignDoc, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
-import { Cosmos } from './api';
-import { Amino } from './encoding/amino';
+import { SignMode } from 'cosmjs-types/cosmos/tx/signing/v1beta1/signing.js';
+import { AuthInfo, Tx as SdkTxDirect, SignDoc, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx.js';
+import { Cosmos } from './api.js';
+import { Amino } from './encoding/amino.js';
 
 /** The format of a Cosmos transaction. Of the two formats, `protobuf` is the default, and `amino`
  * is deprecated. Not all messages support the `amino` format as it has painful limitations. When

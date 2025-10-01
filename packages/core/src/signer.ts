@@ -1,10 +1,10 @@
 import { Signal, signal } from '@preact/signals-core';
-import type { PublicKey } from './crypto/pubkey';
-import type { NetworkConfig } from './networks';
-import type { TxBase } from './types';
-import { addresses } from './address';
-import { mw } from './middleware';
-import { toBase64 } from './utils';
+import type { PublicKey } from './crypto/pubkey.js';
+import type { NetworkConfig } from './networks.js';
+import type { TxBase } from './types.js';
+import { addresses } from './address.js';
+import { mw } from './middleware.js';
+import { toBase64 } from './utils.js';
 
 export type AccountData = FullAccountData | PartialAccountData;
 export type ExternalAccountMap = Record<string, ExternalAccount>;

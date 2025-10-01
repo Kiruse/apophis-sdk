@@ -1,10 +1,10 @@
 import { Signal } from '@preact/signals-core';
 import { base64 } from '@scure/base';
-import { PubKey as SdkEd25519PublicKey } from 'cosmjs-types/cosmos/crypto/ed25519/keys';
-import { PubKey as SdkSecp256k1PublicKey } from 'cosmjs-types/cosmos/crypto/secp256k1/keys';
-import { pubkey, PublicKey } from './crypto/pubkey';
-import type { Any } from './encoding/protobuf/any';
-import type { Bytes } from './types';
+import { PubKey as SdkEd25519PublicKey } from 'cosmjs-types/cosmos/crypto/ed25519/keys.js';
+import { PubKey as SdkSecp256k1PublicKey } from 'cosmjs-types/cosmos/crypto/secp256k1/keys.js';
+import { pubkey, PublicKey } from './crypto/pubkey.js';
+import type { Any } from './encoding/protobuf/any.js';
+import type { Bytes } from './types.js';
 
 export function fromBase64(data: string): Uint8Array {
   return base64.decode(data);

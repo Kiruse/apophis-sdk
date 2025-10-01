@@ -1,15 +1,9 @@
 {
   "name": "@apophis-sdk/monorepo",
-  "version": "0.3.12",
+  "version": "0.3.13",
+  "type": "module",
   "scripts": {
-    "lint": "eslint packages/*/src/**/*.ts --quiet",
-    "lint:fix": "eslint packages/*/src/**/*.ts --fix --quiet"
-  },
-  "devDependencies": {
-    "@typescript-eslint/parser": "^8.43.0",
-    "eslint": "^9.35.0",
-    "eslint-plugin-import": "^2.32.0",
-    "typescript": "^5.5.4"
+    "check:imports": "bun run scripts/check-esm-imports.js"
   },
   "workspaces": [
     "packages/*"

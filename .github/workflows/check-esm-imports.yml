@@ -1,0 +1,36 @@
+name: Check ESM Imports
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+jobs:
+  check-esm-imports:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Check ESM imports
+      run: node scripts/check-esm-imports.js --check
+
+    - name: Build packages
+      run: |
+        cd packages/core && npm run build
+        cd ../cosmos && npm run build
+        cd ../cosmwasm && npm run build
+        cd ../keplr-signer && npm run build
+        cd ../walletconnect-signer && npm run build
+

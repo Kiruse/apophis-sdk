@@ -1,23 +1,23 @@
-import { type FungibleAsset, type CosmosRegistryAsset } from '@apophis-sdk/core';
+import { type CosmosRegistryAsset, type FungibleAsset } from '@apophis-sdk/core';
 import { endpoints } from '@apophis-sdk/core/endpoints.js';
 import { BytesMarshalUnit } from '@apophis-sdk/core/marshal.js';
 import type { CosmosNetworkConfig, NetworkConfig } from '@apophis-sdk/core/networks.js';
 import { PowerSocket } from '@apophis-sdk/core/powersocket.js';
 import * as signals from '@apophis-sdk/core/signals.js';
 import {
-  BroadcastMode,
-  type TransactionResult,
   type BasicRestApi,
   type Block,
   type BlockEvent,
   type BlockEventRaw,
+  BroadcastMode,
+  Coin,
   type CosmosEvent,
+  Gas,
   type TransactionEvent,
   type TransactionEventRaw,
   type TransactionResponse,
+  type TransactionResult,
   type WS,
-  Gas,
-  Coin,
 } from '@apophis-sdk/core/types.sdk.js';
 import { fromBase64, fromHex, toBase64 } from '@apophis-sdk/core/utils.js';
 import { extendDefaultMarshaller, RecaseMarshalUnit } from '@kiruse/marshal';
@@ -25,7 +25,7 @@ import { restful } from '@kiruse/restful';
 import { Event } from '@kiruse/typed-events';
 import { recase } from '@kristiandupont/recase';
 import { type ReadonlySignal } from '@preact/signals';
-import { Tx as SdkTxDirect } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
+import { Tx as SdkTxDirect } from 'cosmjs-types/cosmos/tx/v1beta1/tx.js';
 import { BlockID } from 'cosmjs-types/tendermint/types/types.js';
 import { TendermintQuery } from './tmquery.js';
 import { type CosmosTx, CosmosTxAmino, CosmosTxBase, CosmosTxDirect, CosmosTxEncoding, CosmosTxSignal, CosmosTxSignalOptions } from './tx.js';

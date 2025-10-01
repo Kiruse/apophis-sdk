@@ -1,6 +1,6 @@
-import { NetworkConfig } from './types';
-import { mw } from './middleware';
-import { CosmosNetworkConfig, SolanaNetworkConfig } from './networks';
+import { NetworkConfig } from './types.js';
+import { mw } from './middleware.js';
+import { CosmosNetworkConfig, SolanaNetworkConfig } from './networks.js';
 
 export type BaseEndpoint = 'rpc';
 export type CosmosEndpoint = BaseEndpoint | 'rest' | 'ws';

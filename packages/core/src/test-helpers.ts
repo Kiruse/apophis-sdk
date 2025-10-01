@@ -1,4 +1,4 @@
-import { FungibleAsset, CosmosNetworkConfig } from './networks';
+import { FungibleAsset, CosmosNetworkConfig } from './networks.js';
 
 /** A dummy asset intended for unit testing. Should not be used in production code. */
 export const asset: FungibleAsset = {

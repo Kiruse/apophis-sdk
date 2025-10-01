@@ -1,5 +1,5 @@
 import hpb, { TransformParameters } from '@kiruse/hiproto';
-import { Amino } from '../amino';
+import { Amino } from '../amino.js';
 
 export const bigintTransform: TransformParameters<string, bigint> = {
   encode: (value) => value.toString(),

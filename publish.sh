@@ -52,6 +52,14 @@ if [ "$REGNAME" == "local" ]; then
   fi
 fi
 
+# Check and fix ESM imports before publishing
+echo "🔍 Checking ESM imports..."
+if ! bun run check:imports --check; then
+  echo "❌ ESM import check failed. Please fix the issues above before publishing."
+  exit 1
+fi
+echo "✅ ESM imports are properly formatted."
+
 # Handle "all" packages case
 if [ "${PACKAGES[0]}" == "all" ]; then
   if [ ${#PACKAGES[@]} -gt 1 ]; then

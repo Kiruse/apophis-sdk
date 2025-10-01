@@ -1,5 +1,5 @@
 import { defineMarshalUnit, morph, pass } from '@kiruse/marshal';
-import { toBase64 } from './utils';
+import { toBase64 } from './utils.js';
 
 export const BytesMarshalUnit = defineMarshalUnit(
   (value: any) => value instanceof Uint8Array ? morph(toBase64(value)) : pass,

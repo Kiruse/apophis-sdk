@@ -5,11 +5,11 @@ import { fromBase64, fromHex, toBase64, toHex } from '@apophis-sdk/core/utils.js
 import { ReadonlySignal, signal } from '@preact/signals-core';
 import { SignClient as _SignClient } from '@walletconnect/sign-client';
 import { ProposalTypes, SessionTypes } from '@walletconnect/types';
-import { AuthInfo, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
-import { type WalletConnectSignerConfig } from './config';
-import { WalletConnectSignerError, WalletConnectSignerNotConnectedError } from './error';
-import LOGO_DATA_URL from './logo';
-import { PeerAccount, SignClient, SignResponse } from './types.api';
+import { AuthInfo, TxBody } from 'cosmjs-types/cosmos/tx/v1beta1/tx.js';
+import { type WalletConnectSignerConfig } from './config.js';
+import { WalletConnectSignerError, WalletConnectSignerNotConnectedError } from './error.js';
+import LOGO_DATA_URL from './logo.js';
+import { PeerAccount, SignClient, SignResponse } from './types.api.js';
 
 export interface WCSignerBase {
   /** Get the current connection state. If `undefined`, no connection has been attempted yet. */

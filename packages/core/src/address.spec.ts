@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { addresses, MemoryAddressBook } from './address';
-import { mw } from './middleware';
+import { addresses, MemoryAddressBook } from './address.js';
+import { mw } from './middleware.js';
 
 mw.use(MemoryAddressBook);
 

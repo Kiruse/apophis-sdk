@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'bun:test';
 import { Cosmos } from 'src/api';
-import { pbCoin } from './core';
+import { pbCoin } from './core.js';
 
 describe('Protobuf Core', () => {
   test('Coin', () => {
