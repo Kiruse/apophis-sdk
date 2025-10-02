@@ -418,6 +418,7 @@ export class CosmosWebSocket {
   onTx(query: TendermintQuery | null, callback: (tx: TransactionEvent) => void): Unsub {
     query ??= new TendermintQuery();
     query.exact('tm.event', 'Tx');
+    const q = query.toString();
 
     const id = this.#nextSubId++;
     this.#subs[id] = { type: 'tx', id, query: query ?? undefined, callback };
@@ -425,7 +426,7 @@ export class CosmosWebSocket {
       this.socket.send({
         jsonrpc: '2.0',
         method: 'subscribe',
-        params: [query.toString()],
+        params: [q],
         id,
       });
     };
@@ -436,7 +437,8 @@ export class CosmosWebSocket {
       this.socket.send({
         jsonrpc: '2.0',
         method: 'unsubscribe',
-        id,
+        params: [q],
+        id: -1,
       });
     }
   }

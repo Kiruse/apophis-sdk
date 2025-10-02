@@ -56,6 +56,7 @@ export class KeplrSigner extends Signer<CosmosTx> {
       const hashbytes = await this.backend!.sendTx(network.chainId, tx.bytes(), 'sync' as any);
       const hash = toHex(hashbytes);
       tx.confirm(hash);
+      this.getAccount(network).bumpSequence(network);
       return hash;
     } catch (error: any) {
       tx.reject(tx.hash!, error);
@@ -63,19 +64,12 @@ export class KeplrSigner extends Signer<CosmosTx> {
     }
   }
 
-  /** Load `SignData` for the given networks. This is intended for internal use only and will be
-   * automatically called by the integration.
+  /** Load `SignData` for the given networks and update the sign data if applicable. The sequence
+   * number will only be updated if the current sequence number is less than the new one.
    */
   async updateSignData(accounts: ExternalAccount[], networks = this.#networks): Promise<void> {
     await Promise.all(accounts.map(async acc => {
-      await Promise.all(networks.map(async network => {
-        if (!acc.isBound(network)) return;
-        const data = acc.getSignData(network);
-        const info = await Cosmos.getAccountInfo(network, data.peek().address).catch(() => null);
-        if (info) {
-          acc.setSignData(network, info.accountNumber, info.sequence);
-        }
-      }));
+      await acc.update(networks);
     }));
   }
 
@@ -116,19 +110,19 @@ export class KeplrSigner extends Signer<CosmosTx> {
     if (!network) throw new Error('No network provided');
 
     // Always update sign data before signing to ensure we have the latest sequence number
-    await this.updateSignData([this.getAccount(network)], [network]);
+    const acc = this.getAccount(network);
+    await acc.update([network]);
 
-    const signData = this.getSignData(network);
+    const signData = acc.getSignData(network).peek();
     if (!ExternalAccount.isComplete(signData)) throw new Error('Sign data incomplete');
 
     const { address } = signData;
     if (!address) throw new Error('Account not bound to a network');
 
-    if (tx.encoding === 'amino') {
-      return await this.#signAmino(network, tx, address);
-    } else {
-      return await this.#signDirect(network, tx, address);
-    }
+    const result = tx.encoding === 'amino'
+      ? await this.#signAmino(network, tx, address)
+      : await this.#signDirect(network, tx, address);
+    return result;
   }
 
   async #signAmino(network: CosmosNetworkConfig, tx: CosmosTxAmino, address: string): Promise<CosmosTx> {

@@ -76,7 +76,6 @@ export class LocalSigner extends Signer<CosmosTx> {
   async sign(network: NetworkConfig, tx: CosmosTx): Promise<CosmosTx> {
     if (network.ecosystem !== 'cosmos') throw new Error('Currently, only Cosmos chains are supported');
 
-    // Always update sign data before signing to ensure we have the latest sequence number
     if (this.autoUpdateSignData)
       await this.updateSignData([network]);
 
@@ -104,6 +103,7 @@ export class LocalSigner extends Signer<CosmosTx> {
       throw new Error(`Transaction rejected with codespace ${response.codespace}, code ${response.code}, raw log: ${response.raw_log}`);
     } else {
       tx.confirm(response.txhash);
+      this.getAccount(network).bumpSequence(network);
     }
     return response.txhash;
   }

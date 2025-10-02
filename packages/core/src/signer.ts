@@ -172,6 +172,7 @@ export class ExternalAccount {
 
   /** Update sign data of this account on the given networks. If none specified, all previously bound
    * networks will be updated. Will only update bound networks. Any other networks will be ignored.
+   * The sequence number will only be updated if it is greater than the current sequence number.
    */
   async update(networks?: NetworkConfig[]) {
     networks ??= Array.from(this.#data.keys());
@@ -179,6 +180,30 @@ export class ExternalAccount {
       if (!this.isBound(network)) return;
       await mw('accounts', 'update').inv().notify(this, network);
     }));
+  }
+
+  /** Bump the sequence number for the given network. */
+  bumpSequence(network: NetworkConfig) {
+    const signData = this.getSignData(network);
+    const old = signData.peek();
+    if (!ExternalAccount.isComplete(old)) throw new Error('Sign data incomplete');
+    signData.value = {
+      ...old,
+      sequence: old.sequence + 1n,
+    };
+    return this;
+  }
+
+  /** Reset the sequence number. The next time `update` is called, the sequence number will be re-populated from the network. */
+  resetSequence(network: NetworkConfig) {
+    const signData = this.getSignData(network);
+    const old = signData.peek();
+    if (!ExternalAccount.isComplete(old)) throw new Error('Sign data incomplete');
+    signData.value = {
+      ...old,
+      sequence: 0n,
+    };
+    return this;
   }
 
   /** Override the sign data. Useful for offline signers which track the account number & sequence themselves. */

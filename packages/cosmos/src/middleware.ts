@@ -1,5 +1,5 @@
 import { DefaultMiddlewares } from '@apophis-sdk/core';
-import type { CosmosEndpoint, CosmosEndpoints, CosmosNetworkConfig, ExternalAccount, NetworkConfig } from '@apophis-sdk/core';
+import type { CosmosEndpoint, CosmosEndpoints, CosmosNetworkConfig, ExternalAccount, FullAccountData, NetworkConfig } from '@apophis-sdk/core';
 import type { MiddlewareImpl } from '@apophis-sdk/core/middleware.js';
 import { CosmosPubkeyMiddleware } from './crypto/pubkey.js';
 import { AminoMiddleware } from './encoding/amino.js';
@@ -36,10 +36,11 @@ async function updateAccount(account: ExternalAccount, network: NetworkConfig) {
   const curr = signData.peek();
   try {
     const info = await Cosmos.getAccountInfo(network, curr.address);
+    const { sequence: currSequence = 0n } = curr as FullAccountData;
     signData.value = {
       ...curr,
       accountNumber: info.accountNumber,
-      sequence: info.sequence,
+      sequence: info.sequence > currSequence ? info.sequence : currSequence,
     };
   } catch {
     console.warn(`Failed to update account info for ${curr.address} on ${network.chainId}`);
