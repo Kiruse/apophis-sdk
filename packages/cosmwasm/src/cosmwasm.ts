@@ -1,7 +1,7 @@
 import { BytesMarshalUnit } from '@apophis-sdk/core/marshal.js';
 import { type CosmosNetworkConfig } from '@apophis-sdk/core/networks.js';
 import { type Signer } from '@apophis-sdk/core/signer.js';
-import type { Coin, TransactionResponse } from '@apophis-sdk/core/types.sdk.js';
+import type { Coin, TransactionResponse } from '@apophis-sdk/cosmos/types.sdk.js';
 import { fromBase64, fromHex, fromUtf8, toBase64, toUtf8 } from '@apophis-sdk/core/utils.js';
 import { Cosmos } from '@apophis-sdk/cosmos';
 import { extendDefaultMarshaller, ToJsonMarshalUnit } from '@kiruse/marshal';

@@ -18,7 +18,7 @@ import {
   type TransactionResponse,
   type TransactionResult,
   type WS,
-} from '@apophis-sdk/core/types.sdk.js';
+} from '@apophis-sdk/cosmos/types.sdk.js';
 import { fromBase64, fromHex, toBase64 } from '@apophis-sdk/core/utils.js';
 import { extendDefaultMarshaller, RecaseMarshalUnit } from '@kiruse/marshal';
 import { restful } from '@kiruse/restful';

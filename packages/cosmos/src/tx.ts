@@ -1,6 +1,6 @@
 import { Any, config, type CosmosNetworkConfig, ExternalAccount, NetworkConfig, signals, type Signer, TxBase, TxStatus } from '@apophis-sdk/core';
 import { mw } from '@apophis-sdk/core/middleware.js';
-import type { Gas } from '@apophis-sdk/core/types.sdk.js';
+import type { Gas } from '@apophis-sdk/cosmos/types.sdk.js';
 import { fromBase64, toHex } from '@apophis-sdk/core/utils.js';
 import { Decimal } from '@kiruse/decimal';
 import { extendDefaultMarshaller, IgnoreMarshalUnit } from '@kiruse/marshal';

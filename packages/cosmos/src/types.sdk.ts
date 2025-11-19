@@ -1,13 +1,11 @@
-// TODO: this file has been moved to @apophis-sdk/cosmos/types.sdk.ts, remove in v0.5.0
+// The types here are directly related to Cosmos SDK types.
 import type { Protobuf } from '@apophis-sdk/core/encoding/index.js';
 import type { RestMethods } from '@kiruse/restful';
 import { BroadcastMode } from 'cosmjs-types/cosmos/tx/v1beta1/service.js';
 import type { Tx as CosmosTransaction } from 'cosmjs-types/cosmos/tx/v1beta1/tx.js';
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export { BroadcastMode, CosmosTransaction };
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export interface Block {
   header: BlockHeader;
   data: {
@@ -20,7 +18,6 @@ export interface Block {
   last_commit: BlockLastCommit;
 }
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export interface BlockHeader {
   version: BlockHeaderVersions;
   /** Same as the Chain ID we should already know */
@@ -44,7 +41,6 @@ export interface BlockHeader {
   proposer_address: string;
 }
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export interface BlockId {
   /** Base64 bytes */
   hash: string;
@@ -55,13 +51,11 @@ export interface BlockId {
   };
 }
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export interface BlockHeaderVersions {
   block: bigint;
   app: bigint;
 }
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export interface BlockLastCommit {
   height: bigint;
   round: number;
@@ -69,7 +63,6 @@ export interface BlockLastCommit {
   signatures: BlockSignature[];
 }
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export interface BlockSignature {
   /** An enum in SHOUT_CASE */
   block_id_flag: string;
@@ -79,16 +72,13 @@ export interface BlockSignature {
   signature: string;
 }
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export interface Coin {
   denom: string;
   amount: bigint;
 }
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export type Evidence = unknown;
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export interface BlockEventRaw {
   data: {
     type: string;
@@ -120,7 +110,6 @@ export interface BlockEventRaw {
   query: string;
 }
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export interface BlockEvent {
   header: BlockHeader;
   lastCommit: BlockLastCommit;
@@ -131,7 +120,6 @@ export interface BlockEvent {
   events: CosmosEvent[];
 }
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export interface TransactionResult {
   code?: number;
   codespace?: string;
@@ -144,7 +132,6 @@ export interface TransactionResult {
   events: CosmosEvent[];
 }
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export interface TransactionResponse extends Omit<TransactionResult, 'log'> {
   height: bigint;
   // seems non-standard
@@ -156,7 +143,6 @@ export interface TransactionResponse extends Omit<TransactionResult, 'log'> {
   logs: CosmosLog[];
 }
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export interface TransactionEventRaw {
   data: {
     type: string;
@@ -189,7 +175,6 @@ export interface TransactionEventRaw {
   query: string;
 }
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export type TransactionEvent = {
   height: bigint;
   index: number;
@@ -213,7 +198,6 @@ export type TransactionEvent = {
   }
 )
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export interface CosmosLog {
   msg_index: number;
   log: string;
@@ -221,7 +205,6 @@ export interface CosmosLog {
   events: CosmosEvent[];
 }
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export interface CosmosEvent {
   /** An arbitrary, smart contract or SDK module defined event type. */
   type: string;
@@ -234,14 +217,12 @@ export interface CosmosEvent {
   }[];
 }
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export interface CosmosError {
   code: number;
   codespace: string;
   log: string;
 }
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export interface Pagination {
   'pagination.key': string;
   'pagination.offset': number;
@@ -250,7 +231,6 @@ export interface Pagination {
   'pagination.reverse'?: boolean;
 }
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export interface PaginationResponse {
   /** Next key to pass to your next request. `null` if this is the last page. */
   next_key: string | null;
@@ -258,7 +238,6 @@ export interface PaginationResponse {
   total: bigint;
 }
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export type BasicRestApi = {
   cosmos: {
     auth: {
@@ -528,7 +507,6 @@ export type BasicRestApi = {
   };
 };
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export interface CoinMetadata {
   /** Base denomination name */
   base: string;
@@ -549,7 +527,6 @@ export interface CoinMetadata {
   uri_hash?: string;
 }
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export namespace WS {
   export interface SearchTxsParams {
     pageSize?: number | bigint;
@@ -576,16 +553,13 @@ export namespace WS {
   }
 }
 
-/** @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5 */
 export enum Order {
   Unspecified = 'ORDER_BY_UNSPECIFIED',
   Ascending = 'ORDER_BY_ASC',
   Descending = 'ORDER_BY_DESC',
 }
 
-/** Same as SDK `Fee`, but with proper optionality
- * @deprecated Moved to '@apophis-sdk/cosmos', to be removed in v0.5
- */
+/** Same as SDK `Fee`, but with proper optionality */
 export interface Gas {
   amount: Coin[];
   gasLimit: bigint;

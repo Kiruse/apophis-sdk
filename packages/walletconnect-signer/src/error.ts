@@ -1,4 +1,4 @@
-import { TransactionResponse } from '@apophis-sdk/core/types.sdk.js';
+import { TransactionResponse } from '@apophis-sdk/cosmos/types.sdk.js';
 
 export class WalletConnectSignerError extends Error {
   constructor(message: string) {

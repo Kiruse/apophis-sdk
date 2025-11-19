@@ -7,7 +7,7 @@ import { CosmosNetworkConfig } from '@apophis-sdk/core';
 import { BytesMarshalUnit } from '@apophis-sdk/core/marshal.js';
 import { MiddlewareImpl, mw } from '@apophis-sdk/core/middleware.js';
 import type { Bytes, NetworkConfig } from '@apophis-sdk/core/types.js';
-import type { Coin } from '@apophis-sdk/core/types.sdk.js';
+import type { Coin } from '@apophis-sdk/cosmos/types.sdk.js';
 import { defineMarshalUnit, extendDefaultMarshaller, Marshaller, morph, pass } from '@kiruse/marshal';
 
 /** Descriptor for a type that can be de/serialized to/from Amino. */

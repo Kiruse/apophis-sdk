@@ -21,7 +21,7 @@ for package in $static_order_packages; do
   cd "$package"
   name=$(jq -r .name package.json)
   echo "Building package $name"
-  npm run build
+  bun run build
 done
 
 # Build remaining packages
@@ -34,5 +34,5 @@ for package in $(printf '%s ' $dir/packages/*); do
   cd "$package"
   name=$(jq -r .name package.json)
   echo "Building package $name"
-  npm run build
+  bun run build
 done

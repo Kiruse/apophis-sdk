@@ -1,6 +1,6 @@
 import { CosmosNetworkConfig, endpoints, ExternalAccount, ExternalAccountMap, Signer, type NetworkConfig } from '@apophis-sdk/core';
 import { pubkey, PublicKey } from '@apophis-sdk/core/crypto/pubkey.js';
-import { BroadcastMode } from '@apophis-sdk/core/types.sdk.js';
+import { BroadcastMode } from '@apophis-sdk/cosmos/types.sdk.js';
 import * as utils from '@apophis-sdk/core/utils.js';
 import * as bip32 from '@scure/bip32';
 import * as bip39 from '@scure/bip39';
