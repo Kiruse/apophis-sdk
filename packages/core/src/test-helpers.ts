@@ -1,5 +1,9 @@
 import { FungibleAsset, CosmosNetworkConfig } from './networks.js';
 
+export const PION_REST_URL = 'https://rest-falcron.pion-1.ntrn.tech';
+export const PION_RPC_URL = 'https://rpc-falcron.pion-1.ntrn.tech';
+export const PION_WS_URL = 'wss://rpc-falcron.pion-1.ntrn.tech/websocket';
+
 /** A dummy asset intended for unit testing. Should not be used in production code. */
 export const asset: FungibleAsset = {
   denom: 'untrn',
@@ -19,8 +23,9 @@ export const network: CosmosNetworkConfig = {
     asset,
     avgPrice: 0.0053,
   }],
+  endpoints: {
+    rest: [PION_REST_URL],
+    rpc: [PION_RPC_URL],
+    ws: [PION_WS_URL],
+  },
 };
-
-export const PION_REST_URL = 'https://rest-falcron.pion-1.ntrn.tech';
-export const PION_RPC_URL = 'https://rpc-falcron.pion-1.ntrn.tech';
-export const PION_WS_URL = 'wss://rpc-falcron.pion-1.ntrn.tech/websocket';

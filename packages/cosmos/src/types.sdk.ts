@@ -505,6 +505,83 @@ export type BasicRestApi = {
       };
     };
   };
+
+  ibc: {
+    core: {
+      channel: {
+        v1: {
+          channels: RestMethods<{
+            get(opts?: Pagination): {
+              channels: IBCTypes.Channel[];
+              pagination: PaginationResponse;
+            }
+          }> & {
+            [channel_id: string]: RestMethods<{
+              get(): {
+                channel: IBCTypes.Channel;
+              };
+            }>;
+          };
+        };
+        // TODO: v2
+      };
+
+      client: {
+        v1: {
+          client_states: RestMethods<{
+            get(opts?: Pagination): {
+              client_states: IBCTypes.ClientState[];
+              pagination: PaginationResponse;
+            };
+          }> & {
+            [client_id: string]: RestMethods<{
+              get(): {
+                client_state: IBCTypes.ClientState;
+              };
+            }>;
+          };
+        };
+        // TODO: v2
+      }
+
+      connection: {
+        v1: {
+          connections: RestMethods<{
+            get(opts?: Pagination): {
+              connections: IBCTypes.Connection[];
+              pagination: PaginationResponse;
+            };
+          }> & {
+            [connection_id: string]: RestMethods<{
+              get(): {
+                connection: IBCTypes.Connection;
+              };
+            }>;
+          }
+        };
+        // TODO: v2
+      };
+    };
+
+    apps: {
+      transfer: {
+        v1: {
+          denom_traces: RestMethods<{
+            get(opts?: Pagination): {
+              denom_traces: IBCTypes.DenomTrace[];
+              pagination: PaginationResponse;
+            };
+          }> & {
+            [trace_hash: string]: RestMethods<{
+              get(): {
+                denom_trace: IBCTypes.DenomTrace;
+              };
+            }>;
+          };
+        };
+      };
+    };
+  };
 };
 
 export interface CoinMetadata {
@@ -550,6 +627,98 @@ export namespace WS {
     tx: string;
     /** Results corresponding to each tx in order. */
     tx_result: TransactionResult;
+  }
+}
+
+export namespace IBCTypes {
+  export interface Channel {
+    state: ChannelState;
+    ordering: ChannelOrdering;
+    counterparty: {
+      port_id: string;
+      channel_id: string;
+    };
+    connection_hops: string[];
+    version: string;
+    port_id: string;
+    channel_id: string;
+    upgrade_sequence: bigint;
+  }
+
+  export enum ChannelState {
+    Unspecified = 'STATE_UNINITIALIZED_UNSPECIFIED',
+    Init = 'STATE_INIT',
+    TryOpen = 'STATE_TRYOPEN',
+    Open = 'STATE_OPEN',
+    Closed = 'STATE_CLOSED',
+  }
+
+  export enum ChannelOrdering {
+    None = 'ORDERING_NONE_UNSPECIFIED',
+    Unordered = 'ORDERING_UNORDERED',
+    Ordered = 'ORDERING_ORDERED',
+  }
+
+  export interface Connection {
+    id: string;
+    client_id: string;
+    versions: {
+      identifier: string | bigint;
+      features: string[];
+    }[];
+    state: ConnectionState;
+    counterparty: {
+      client_id: string;
+      connection_id: string;
+      prefix: {
+        key_prefix: string;
+      };
+    };
+    delay_period: bigint;
+  }
+
+  export enum ConnectionState {
+    Unspecified = 'STATE_UNINITIALIZED_UNSPECIFIED',
+    Init = 'STATE_INIT',
+    TryOpen = 'STATE_TRYOPEN',
+    Open = 'STATE_OPEN',
+  }
+
+  export interface ClientState {
+    client_id: string;
+    client_state: {
+      /** Unique Chain ID. Typically corresponds to the Chain ID as found in the chain registry. */
+      chain_id: string;
+      trust_level: {
+        numerator: bigint;
+        denominator: bigint;
+      };
+      /** Numeric time period string with unit */
+      trusting_period: string;
+      /** Numeric time period string with unit */
+      unbonding_period: string;
+      /** Numeric time period string with unit */
+      max_clock_drift: string;
+      frozen_height?: {
+        revision_number: bigint;
+        revision_height: bigint;
+      };
+      latest_height: {
+        revision_number: bigint;
+        revision_height: bigint;
+      };
+      proof_specs: unknown[];
+      upgrade_path: string[];
+      allow_update_after_expiry: boolean;
+      allow_update_after_misbehaviour: boolean;
+    }
+  }
+
+  export interface DenomTrace {
+    /** IBC path, possibly multi-hop, consisting of `(port)/(channel)/...` pairs. */
+    path: string;
+    /** Denom of the token as it is known on the source chain. */
+    base_denom: string;
   }
 }
 

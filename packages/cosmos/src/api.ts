@@ -4,6 +4,7 @@ import { BytesMarshalUnit } from '@apophis-sdk/core/marshal.js';
 import type { CosmosNetworkConfig, NetworkConfig } from '@apophis-sdk/core/networks.js';
 import { PowerSocket } from '@apophis-sdk/core/powersocket.js';
 import * as signals from '@apophis-sdk/core/signals.js';
+import { fromBase64, fromHex, toBase64, toHex } from '@apophis-sdk/core/utils.js';
 import {
   type BasicRestApi,
   type Block,
@@ -13,17 +14,18 @@ import {
   Coin,
   type CosmosEvent,
   Gas,
+  IBCTypes,
   type TransactionEvent,
   type TransactionEventRaw,
   type TransactionResponse,
   type TransactionResult,
   type WS,
 } from '@apophis-sdk/cosmos/types.sdk.js';
-import { fromBase64, fromHex, toBase64 } from '@apophis-sdk/core/utils.js';
 import { extendDefaultMarshaller, RecaseMarshalUnit } from '@kiruse/marshal';
 import { restful } from '@kiruse/restful';
 import { Event } from '@kiruse/typed-events';
 import { recase } from '@kristiandupont/recase';
+import { sha256 } from '@noble/hashes/sha256';
 import { type ReadonlySignal } from '@preact/signals';
 import { Tx as SdkTxDirect } from 'cosmjs-types/cosmos/tx/v1beta1/tx.js';
 import { BlockID } from 'cosmjs-types/tendermint/types/types.js';
@@ -184,7 +186,7 @@ export const Cosmos = new class {
 
       let { block: lastBlock } = await ws.getBlock(startHeight);
       let { block } = await ws.getBlock(guessNextHeight(lastBlock, timestamp, blockSpeed));
-      while (!foundTargetBlock(block, lastBlock, timestamp)) {
+      while (!findTargetBlock(block, lastBlock, timestamp)) {
         // blockSpeed has an anti-proportional effect on the step size, so we increase it with every
         // iteration to prevent overshooting
         blockSpeed *= 1.1;
@@ -612,6 +614,17 @@ export class CosmosWebSocket {
   get connected() { return this.socket.connected }
 }
 
+export namespace IBC {
+  /** Compute the has of an IBC transfer path. Formatted as `ibc/{hash}`, this is the canonical
+   * native denom of the token on the local chain.
+   */
+  export function hash(path: string) {
+    const parts = path.split('/');
+    if ((parts.length - 1) % 2 !== 0) throw new Error('Invalid IBC path: expected pattern {port}/{channel}/(...)/{base_denom}');
+    return toHex(sha256(path)).toUpperCase();
+  }
+}
+
 interface TxSubscriptionMetadata {
   type: 'block' | 'tx';
   id: number;
@@ -637,15 +650,6 @@ interface RPCError {
   result?: undefined;
 }
 
-function setDiff<T>(setA: Set<T>, setB: Set<T>) {
-  //@ts-ignore
-  if (typeof Set.prototype.difference === 'function') {
-    //@ts-ignore
-    return setA.difference(setB);
-  }
-  return new Set(Array.from(setA).filter(x => !setB.has(x)));
-}
-
 /** Guess the next block height based on the given block and the target timestamp. This method is
  * intended to be used to search for a specific block at the given `timestamp` with a divide-and-conquer
  * approach.
@@ -661,7 +665,7 @@ function guessNextHeight(lastBlock: Block, timestamp: Date, blockSpeed: number):
   return lastBlock.header.height + BigInt(blocksToAdd);
 }
 
-function foundTargetBlock(blockA: Block, blockB: Block, timestamp: Date) {
+function findTargetBlock(blockA: Block, blockB: Block, timestamp: Date) {
   return (blockA.header.time < timestamp && timestamp < blockB.header.time) &&
     ((blockA.header.height + 1n) === blockB.header.height);
 }
