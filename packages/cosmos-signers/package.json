@@ -10,7 +10,9 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "test": "bun test"
+    "test": "bun test",
+    "test:react": "bash test-apps/react/launch.sh",
+    "test:vue": "bash test-apps/vue/launch.sh"
   },
   "dependencies": {
     "@apophis-sdk/keplr-signer": "0.3.15",

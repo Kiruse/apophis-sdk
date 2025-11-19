@@ -1,0 +1,23 @@
+{
+  "name": "@apophis-sdk/cosmos-signers-vue-test",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@apophis-sdk/core": "workspace:*",
+    "@apophis-sdk/cosmos": "workspace:*",
+    "@apophis-sdk/cosmos-signers": "workspace:*",
+    "vue": "^3.3.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^4.5.0",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.8"
+  }
+}
+

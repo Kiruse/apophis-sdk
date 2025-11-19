@@ -6,7 +6,8 @@
     "check:imports": "bun run scripts/check-esm-imports.js"
   },
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "packages/cosmos-signers/test-apps/*"
   ],
   "private": true
 }
