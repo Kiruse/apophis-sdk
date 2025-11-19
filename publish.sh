@@ -78,7 +78,7 @@ for package in "${PACKAGES[@]}"; do
   fi
   cd "$dir/$package"
   echo "Publishing $package to $REGNAME"
-  npm publish --access public $REGISTRY
+  bun publish --access public $REGISTRY
 done
 
 echo "Done."
