@@ -1,7 +1,7 @@
 import { Signer } from '@apophis-sdk/core';
 import { Keplr, Leap } from '@apophis-sdk/keplr-signer';
 import { WalletConnectCosmosSigner } from '@apophis-sdk/walletconnect-signer';
-import { GalaxyStation } from './galaxystation';
+import { GalaxyStation } from './galaxystation.js';
 
 export * from '@apophis-sdk/keplr-signer';
 export * from '@apophis-sdk/walletconnect-signer';
