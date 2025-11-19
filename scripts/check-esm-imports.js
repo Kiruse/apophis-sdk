@@ -7,6 +7,10 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+const ignoredPackages = [
+  '@noble/hashes',
+];
+
 /**
  * Recursively find all TypeScript files in a directory
  */
@@ -35,7 +39,7 @@ function needsJsExtension(importPath) {
     return true;
   if (!importPath.startsWith('./') && !importPath.startsWith('../'))
     return false;
-  if (importPath.endsWith('.js'))
+  if (importPath.endsWith('.js') || ignoredPackages.some(pkg => importPath.startsWith(pkg + '/')))
     return false;
   return true;
 }
