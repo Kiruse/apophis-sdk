@@ -11,6 +11,54 @@ const marshaller = extendMarshaller(AminoMarshaller, [
   RecaseMarshalUnit(toSnakeCase, toCamelCase),
 ]);
 
+//#region Shared Types
+export const pbAccessConfig = hpb.message({
+  permission: hpb.int32(1).required(),
+  addresses: hpb.repeated.string(2),
+});
+
+export const pbContractInfo = hpb.message({
+  codeId: hpb.uint64(1).required(),
+  creator: hpb.string(2).required(),
+  admin: hpb.string(3),
+  label: hpb.string(4),
+  created: hpb.submessage(5, {
+    blockHeight: hpb.uint64(1),
+    txIndex: hpb.uint64(2),
+  }),
+  ibcPortId: hpb.string(6),
+  extension: hpb.bytes(7),
+});
+
+export const pbModel = hpb.message({
+  key: hpb.bytes(1).required(),
+  value: hpb.bytes(2).required(),
+});
+
+export const pbContractCodeHistoryEntry = hpb.message({
+  operation: hpb.int32(1).required(),
+  codeId: hpb.uint64(2).required(),
+  updated: hpb.submessage(3, {
+    blockHeight: hpb.uint64(1),
+    txIndex: hpb.uint64(2),
+  }),
+  msg: hpb.bytes(4),
+});
+
+// CodeInfoResponse is used in Code and Codes queries
+export const pbCodeInfoResponse = hpb.message({
+  codeId: hpb.uint64(1).required(),
+  creator: hpb.string(2).required(),
+  dataHash: hpb.bytes(3).required(),
+  instantiatePermission: hpb.submessage(6, pbAccessConfig).required(),
+});
+
+export const pbParams = hpb.message({
+  codeUploadAccess: hpb.submessage(1, pbAccessConfig).required(),
+  instantiateDefaultPermission: hpb.int32(2).required(),
+});
+//#endregion
+
 export namespace Contract {
   //#region StoreCode
   export const pbStoreCode = hpb.message({
@@ -20,7 +68,7 @@ export namespace Contract {
       decode: value => Bytes.getUint8Array(value),
       get default() { return new Uint8Array() },
     }),
-    instantiatePermission: hpb.submessage(5, Query.pbAccessConfig),
+    instantiatePermission: hpb.submessage(5, pbAccessConfig),
   });
 
   export type StoreCodeData = hpb.infer<typeof pbStoreCode>;
@@ -180,7 +228,7 @@ export namespace Contract {
   export const pbUpdateInstantiateConfig = hpb.message({
     sender: hpb.string(1).required(),
     codeId: hpb.uint64(2).required(),
-    newInstantiatePermission: hpb.submessage(3, Query.pbAccessConfig),
+    newInstantiatePermission: hpb.submessage(3, pbAccessConfig),
   });
 
   export type UpdateInstantiateConfigData = hpb.infer<typeof pbUpdateInstantiateConfig>;
@@ -200,7 +248,7 @@ export namespace Contract {
   //#region UpdateParams
   export const pbUpdateParams = hpb.message({
     authority: hpb.string(1).required(),
-    params: hpb.submessage(2, Query.pbParams).required(),
+    params: hpb.submessage(2, pbParams).required(),
   });
 
   export type UpdateParamsData = hpb.infer<typeof pbUpdateParams>;
@@ -286,7 +334,7 @@ export namespace Contract {
       decode: value => Bytes.getUint8Array(value),
       get default() { return new Uint8Array() },
     }),
-    instantiatePermission: hpb.submessage(4, Query.pbAccessConfig),
+    instantiatePermission: hpb.submessage(4, pbAccessConfig),
     unpinCode: hpb.bool(5),
     admin: hpb.string(6),
     label: hpb.string(7),
@@ -362,7 +410,7 @@ export namespace Contract {
       decode: value => Bytes.getUint8Array(value),
       get default() { return new Uint8Array() },
     }),
-    instantiatePermission: hpb.submessage(3, Query.pbAccessConfig),
+    instantiatePermission: hpb.submessage(3, pbAccessConfig),
     contract: hpb.string(4).required(),
     msg: hpb.json<any>(5).required().transform(aminoTransform),
   });
@@ -406,54 +454,6 @@ export namespace Contract {
   //#endregion UpdateContractLabel
 
   export namespace Query {
-    //#region Shared Types
-    export const pbAccessConfig = hpb.message({
-      permission: hpb.int32(1).required(),
-      addresses: hpb.repeated.string(2),
-    });
-
-    export const pbContractInfo = hpb.message({
-      codeId: hpb.uint64(1).required(),
-      creator: hpb.string(2).required(),
-      admin: hpb.string(3),
-      label: hpb.string(4),
-      created: hpb.submessage(5, {
-        blockHeight: hpb.uint64(1),
-        txIndex: hpb.uint64(2),
-      }),
-      ibcPortId: hpb.string(6),
-      extension: hpb.bytes(7),
-    });
-
-    export const pbModel = hpb.message({
-      key: hpb.bytes(1).required(),
-      value: hpb.bytes(2).required(),
-    });
-
-    export const pbContractCodeHistoryEntry = hpb.message({
-      operation: hpb.int32(1).required(),
-      codeId: hpb.uint64(2).required(),
-      updated: hpb.submessage(3, {
-        blockHeight: hpb.uint64(1),
-        txIndex: hpb.uint64(2),
-      }),
-      msg: hpb.bytes(4),
-    });
-
-    // CodeInfoResponse is used in Code and Codes queries
-    export const pbCodeInfoResponse = hpb.message({
-      codeId: hpb.uint64(1).required(),
-      creator: hpb.string(2).required(),
-      dataHash: hpb.bytes(3).required(),
-      instantiatePermission: hpb.submessage(6, pbAccessConfig).required(),
-    });
-
-    export const pbParams = hpb.message({
-      codeUploadAccess: hpb.submessage(1, pbAccessConfig).required(),
-      instantiateDefaultPermission: hpb.int32(2).required(),
-    });
-    //#endregion
-
     //#region ContractInfo
     export const pbContractInfoRequest = hpb.message({
       address: hpb.string(1).required(),

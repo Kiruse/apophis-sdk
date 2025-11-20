@@ -1,10 +1,10 @@
 import { CosmosNetworkConfig } from '@apophis-sdk/core';
 import { registerDefaultProtobufSchema } from '@apophis-sdk/core/encoding/protobuf/any.js';
 import { hpb } from '@kiruse/hiproto';
+import { assertABCIQuery } from '../abciquery.js';
 import { Cosmos } from '../api.js';
 import { registerDefaultAminos } from '../encoding/amino.js';
 import { pbCoin, pbPageRequest, pbPageResponse } from '../encoding/protobuf/core.js';
-import { assertABCIQuery } from 'src/abciquery.js';
 
 export namespace Bank {
   export type DenomMetadata = hpb.infer<typeof Query.pbMetadata>;

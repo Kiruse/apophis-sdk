@@ -1,5 +1,5 @@
-import { describe, test, expect } from 'bun:test';
-import { Cosmos } from 'src/api';
+import { describe, expect, test } from 'bun:test';
+import { Cosmos } from '../../api.js';
 import { pbCoin } from './core.js';
 
 describe('Protobuf Core', () => {

@@ -32,6 +32,13 @@ function findTsFiles(dir, files = []) {
 }
 
 /**
+ * Check if an import uses illegal baseUrl path (starts with src/)
+ */
+function isIllegalBaseUrlImport(importPath) {
+  return importPath.startsWith('src/');
+}
+
+/**
  * Check if a relative import needs .js extension
  */
 function needsJsExtension(importPath) {
@@ -46,6 +53,7 @@ function needsJsExtension(importPath) {
 
 /**
  * Fix ESM imports in a file
+ * Returns { modified: boolean, illegalImports: Array }
  */
 function fixImportsInFile(filePath) {
   const content = readFileSync(filePath, 'utf8');
@@ -56,10 +64,39 @@ function fixImportsInFile(filePath) {
   const exportRegex = /export\s+.*?\s+from\s+['"]([^'"]+)['"]/g;
 
   let newContent = content;
+  const illegalImports = [];
 
-  // Fix import statements
+  // First, collect illegal imports with line numbers
+  let match;
+  while ((match = importRegex.exec(content)) !== null) {
+    const importPath = match[1];
+    if (isIllegalBaseUrlImport(importPath)) {
+      illegalImports.push({
+        type: 'import',
+        path: importPath,
+        line: content.substring(0, match.index).split('\n').length,
+        filePath
+      });
+    }
+  }
+
+  while ((match = exportRegex.exec(content)) !== null) {
+    const importPath = match[1];
+    if (isIllegalBaseUrlImport(importPath)) {
+      illegalImports.push({
+        type: 'export',
+        path: importPath,
+        line: content.substring(0, match.index).split('\n').length,
+        filePath
+      });
+    }
+  }
+
+  // Fix import statements (only .js extensions, illegal imports are left as-is)
   newContent = newContent.replace(importRegex, (match, importPath) => {
-    if (needsJsExtension(importPath)) {
+    if (isIllegalBaseUrlImport(importPath)) {
+      return match; // Don't modify, just report
+    } else if (needsJsExtension(importPath)) {
       let fixedPath = importPath.replace(/\.ts$/, '') + '.js';
       modified = true;
       return match.replace(importPath, fixedPath);
@@ -67,9 +104,11 @@ function fixImportsInFile(filePath) {
     return match;
   });
 
-  // Fix export statements
+  // Fix export statements (only .js extensions, illegal imports are left as-is)
   newContent = newContent.replace(exportRegex, (match, importPath) => {
-    if (needsJsExtension(importPath)) {
+    if (isIllegalBaseUrlImport(importPath)) {
+      return match; // Don't modify, just report
+    } else if (needsJsExtension(importPath)) {
       let fixedPath = importPath.replace(/\.ts$/, '') + '.js';
       modified = true;
       return match.replace(importPath, fixedPath);
@@ -79,10 +118,9 @@ function fixImportsInFile(filePath) {
 
   if (modified) {
     writeFileSync(filePath, newContent, 'utf8');
-    console.log(`🔎 Fixed imports in: ${filePath}`);
   }
 
-  return modified;
+  return { modified, illegalImports };
 }
 
 /**
@@ -101,12 +139,23 @@ function checkImportsInFile(filePath) {
   // Check import statements
   while ((match = importRegex.exec(content)) !== null) {
     const importPath = match[1];
-    if (needsJsExtension(importPath)) {
+    if (isIllegalBaseUrlImport(importPath)) {
       issues.push({
         type: 'import',
         path: importPath,
         line: content.substring(0, match.index).split('\n').length,
-        suggested: importPath.replace(/\.ts$/, '') + '.js'
+        issue: 'illegal_baseurl',
+        message: `Illegal baseUrl import '${importPath}' - must use relative path (./ or ../)`,
+        filePath
+      });
+    } else if (needsJsExtension(importPath)) {
+      issues.push({
+        type: 'import',
+        path: importPath,
+        line: content.substring(0, match.index).split('\n').length,
+        issue: 'missing_js_extension',
+        suggested: importPath.replace(/\.ts$/, '') + '.js',
+        filePath
       });
     }
   }
@@ -114,12 +163,23 @@ function checkImportsInFile(filePath) {
   // Check export statements
   while ((match = exportRegex.exec(content)) !== null) {
     const importPath = match[1];
-    if (needsJsExtension(importPath)) {
+    if (isIllegalBaseUrlImport(importPath)) {
       issues.push({
         type: 'export',
         path: importPath,
         line: content.substring(0, match.index).split('\n').length,
-        suggested: importPath.replace(/\.ts$/, '') + '.js'
+        issue: 'illegal_baseurl',
+        message: `Illegal baseUrl import '${importPath}' - must use relative path (./ or ../)`,
+        filePath
+      });
+    } else if (needsJsExtension(importPath)) {
+      issues.push({
+        type: 'export',
+        path: importPath,
+        line: content.substring(0, match.index).split('\n').length,
+        issue: 'missing_js_extension',
+        suggested: importPath.replace(/\.ts$/, '') + '.js',
+        filePath
       });
     }
   }
@@ -134,8 +194,8 @@ function main() {
 
   console.log(`🔍 ${checkOnly ? 'Checking' : 'Fixing'} ESM imports in packages...`);
 
-  let totalIssues = 0;
   let totalFiles = 0;
+  const allIssues = [];
 
   // Find all TypeScript files in packages
   const tsFiles = findTsFiles(packagesDir);
@@ -146,33 +206,66 @@ function main() {
 
     if (checkOnly) {
       const issues = checkImportsInFile(filePath);
-      if (issues.length > 0) {
-        totalIssues += issues.length;
-        console.log(`❌ Found ${issues.length} issues:`);
-        issues.forEach(issue => {
-          console.log(`  Line ${issue.line}: ${issue.type} '${issue.path}' should be '${issue.suggested}'`);
-        });
-      }
+      allIssues.push(...issues);
     } else {
-      const modified = fixImportsInFile(filePath);
-      if (modified) {
+      const result = fixImportsInFile(filePath);
+      if (result.modified) {
         totalFiles++;
       }
+      // Convert illegal imports to the same format as check mode
+      allIssues.push(...result.illegalImports.map(imp => ({
+        ...imp,
+        issue: 'illegal_baseurl',
+        message: `Illegal baseUrl import '${imp.path}' - must use relative path (./ or ../)`
+      })));
     }
   }
 
-  if (checkOnly) {
-    if (totalIssues > 0) {
-      console.log(`\n❌ Found ${totalIssues} ESM import issues that need fixing.`);
-      process.exit(1);
-    } else {
-      console.log(`\n✅ No issues found.`);
+  // Log all issues at the end
+  if (allIssues.length > 0) {
+    console.log(`\n❌ Found ${allIssues.length} ESM import issue(s):\n`);
+
+    // Group by file for better readability
+    const issuesByFile = {};
+    allIssues.forEach(issue => {
+      const relativePath = issue.filePath.replace(process.cwd() + '/', '');
+      if (!issuesByFile[relativePath]) {
+        issuesByFile[relativePath] = [];
+      }
+      issuesByFile[relativePath].push(issue);
+    });
+
+    // Log issues grouped by file
+    for (const [filePath, issues] of Object.entries(issuesByFile)) {
+      console.log(`  ${filePath}:`);
+      issues.forEach(issue => {
+        if (issue.issue === 'illegal_baseurl') {
+          console.log(`    Line ${issue.line}: ${issue.type} '${issue.path}' - ${issue.message}`);
+        } else {
+          console.log(`    Line ${issue.line}: ${issue.type} '${issue.path}' should be '${issue.suggested}'`);
+        }
+      });
+      console.log('');
     }
-  } else {
-    if (totalFiles > 0) {
-      console.log(`\n✅ Fixed imports in ${totalFiles} files.`);
+
+    if (checkOnly) {
+      console.log(`❌ Found ${allIssues.length} ESM import issues that need fixing.`);
     } else {
+      if (totalFiles > 0) {
+        console.log(`✅ Fixed imports in ${totalFiles} files.`);
+      }
+      console.log(`❌ Found ${allIssues.length} issue(s) that require manual fixes.`);
+    }
+    process.exit(1);
+  } else {
+    if (checkOnly) {
       console.log(`\n✅ No issues found.`);
+    } else {
+      if (totalFiles > 0) {
+        console.log(`\n✅ Fixed imports in ${totalFiles} files.`);
+      } else {
+        console.log(`\n✅ No issues found.`);
+      }
     }
   }
 }
