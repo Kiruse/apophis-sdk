@@ -21,3 +21,16 @@ export const pbCoin = hpb.message({
     default: 0n,
   }),
 });
+
+export const pbPageRequest = hpb.message({
+  key: hpb.bytes(1),
+  offset: hpb.uint64(2),
+  limit: hpb.uint64(3),
+  countTotal: hpb.bool(4),
+  reverse: hpb.bool(5),
+});
+
+export const pbPageResponse = hpb.message({
+  nextKey: hpb.bytes(1),
+  total: hpb.uint64(2).required(),
+});

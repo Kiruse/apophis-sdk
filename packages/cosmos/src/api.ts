@@ -1,10 +1,11 @@
-import { type CosmosRegistryAsset, type FungibleAsset } from '@apophis-sdk/core';
+import { Bytes, mw, type CosmosRegistryAsset, type FungibleAsset } from '@apophis-sdk/core';
+import { Any } from '@apophis-sdk/core/encoding/protobuf/any.js';
 import { endpoints } from '@apophis-sdk/core/endpoints.js';
 import { BytesMarshalUnit } from '@apophis-sdk/core/marshal.js';
 import type { CosmosNetworkConfig, NetworkConfig } from '@apophis-sdk/core/networks.js';
 import { PowerSocket } from '@apophis-sdk/core/powersocket.js';
 import * as signals from '@apophis-sdk/core/signals.js';
-import { fromBase64, fromHex, toBase64, toHex } from '@apophis-sdk/core/utils.js';
+import { bytes, fromBase64, fromHex, toBase64, toHex } from '@apophis-sdk/core/utils.js';
 import {
   type BasicRestApi,
   type Block,
@@ -14,7 +15,6 @@ import {
   Coin,
   type CosmosEvent,
   Gas,
-  IBCTypes,
   type TransactionEvent,
   type TransactionEventRaw,
   type TransactionResponse,
@@ -29,6 +29,7 @@ import { sha256 } from '@noble/hashes/sha256';
 import { type ReadonlySignal } from '@preact/signals';
 import { Tx as SdkTxDirect } from 'cosmjs-types/cosmos/tx/v1beta1/tx.js';
 import { BlockID } from 'cosmjs-types/tendermint/types/types.js';
+import { ABCIQuery, isABCIQuery } from './abciquery.js';
 import { TendermintQuery } from './tmquery.js';
 import { type CosmosTx, CosmosTxAmino, CosmosTxBase, CosmosTxDirect, CosmosTxEncoding, CosmosTxSignal, CosmosTxSignalOptions } from './tx.js';
 
@@ -404,6 +405,39 @@ export class CosmosWebSocket {
     if (result.code)
       throw new Error(`Failed to broadcast transaction: ${result.code} (${result.codespace}): ${result.log}`);
     return tx.hash;
+  }
+
+  /** Low-level method to query the chain with a protobuf message.
+   *
+   * @param msg Protobuf message object to query with.
+   * @param height Height of the block to query at. Defaults to 0 (latest height). Beware that nodes may individually prune blocks at different intervals.
+   * @param prove Whether to request a merkle tree proof of the query result.
+   */
+  async query<T extends string, Req, Res>(query: ABCIQuery<T, Req, Res>, data: Req, height = 0n, prove = false): Promise<Res> {
+    const payload = query.request.encode(data).toShrunk();
+
+    const { response } = await this.send<{
+      response: {
+        code: number;
+        codespace?: string;
+        log?: string;
+        info?: string;
+        index: bigint;
+        key?: unknown;
+        value: Bytes;
+        proof_ops?: unknown;
+        height: bigint;
+      };
+    }>('abci_query', {
+      path: query.path,
+      data: payload.toHex(),
+      height,
+      prove,
+    });
+
+    if (response.code)
+      throw new Error(`Failed to query ${query.path}: ${response.code} (${response.codespace}): ${response.log}`);
+    return query.response.decode(bytes(response.value));
   }
 
   onBlock(callback: (block: BlockEvent) => void) {
