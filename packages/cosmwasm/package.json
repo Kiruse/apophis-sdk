@@ -13,7 +13,7 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@kiruse/hiproto": "^0.1.15",
+    "@kiruse/hiproto": "^0.1.17",
     "@kiruse/marshal": "^0.2.1",
     "classnames": "^2.5.1",
     "tslib": "^2.6.3"

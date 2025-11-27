@@ -13,7 +13,7 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@kiruse/hiproto": "^0.1.15",
+    "@kiruse/hiproto": "^0.1.17",
     "@kiruse/marshal": "^0.2.1",
     "@noble/hashes": "^1.7.1",
     "@noble/secp256k1": "^3.0.0",

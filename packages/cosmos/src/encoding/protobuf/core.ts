@@ -1,5 +1,7 @@
 import hpb, { TransformParameters } from '@kiruse/hiproto';
 import { Amino } from '../amino.js';
+import { fromBase64, toBase64 } from '@apophis-sdk/core/utils.js';
+import { Bytes, Bytes as HpbBytes } from '@kiruse/hiproto/protobuffer';
 
 export const bigintTransform: TransformParameters<string, bigint> = {
   encode: (value) => value.toString(),
@@ -13,6 +15,12 @@ export const aminoTransform: TransformParameters<any, any> = {
   get default() { return null },
 };
 
+export const b64Transform: TransformParameters<Bytes | Uint8Array | undefined, string> = {
+  encode: (value) => fromBase64(value),
+  decode: (value) => toBase64(HpbBytes.getUint8Array(value)),
+  default: '',
+};
+
 export const pbCoin = hpb.message({
   denom: hpb.string(1).required(),
   amount: hpb.string(2).required().transform({
@@ -23,7 +31,7 @@ export const pbCoin = hpb.message({
 });
 
 export const pbPageRequest = hpb.message({
-  key: hpb.bytes(1),
+  key: hpb.bytes(1).transform(b64Transform),
   offset: hpb.uint64(2),
   limit: hpb.uint64(3),
   countTotal: hpb.bool(4),
@@ -31,6 +39,6 @@ export const pbPageRequest = hpb.message({
 });
 
 export const pbPageResponse = hpb.message({
-  nextKey: hpb.bytes(1),
+  nextKey: hpb.bytes(1).transform(b64Transform),
   total: hpb.uint64(2).required(),
 });
